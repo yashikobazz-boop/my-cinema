@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>シリーズ分析 - 映画鑑賞管理 Pro</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="style.css">
+    <script src="datasource.js"></script>
+    <script src="tmdb_api.js"></script>
+    <script src="common.js"></script>
+    
+    <style>
+    /* ===== S10 スタイル定義（最新UIを完全固定） ===== */
+        :root { --prime-blue: #00A8E1; }
+        #page-series h1 { color: #00ff7f; margin-bottom: 20px; display: flex; align-items: center; }
+        .header-count { color: #00ff7f; font-size: 1.2rem; margin-left: 10px; font-weight: bold; }
+
+        .filter-button-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+            margin-bottom: 15px; background: #000; padding: 2px;
+            border-radius: 8px; border: 1px solid #111;
+        }
+        .filter-btn { 
+            padding: 12px 0; border: none;
+            background: linear-gradient(to bottom, #005533 0%, #00331a 100%);
+            color: rgba(255, 255, 255, 0.6); font-size: 0.85rem; font-weight: bold;
+            cursor: pointer; transition: all 0.2s ease; position: relative;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1); border-top: 1px solid #00ff7f;
+        }
+        .filter-btn.active { 
+            background: linear-gradient(to bottom, #008855 0%, #004422 100%);
+            color: #fff; box-shadow: 0 0 15px rgba(0, 255, 127, 0.2);
+            text-shadow: 0 0 8px rgba(0, 255, 127, 0.6); z-index: 2;
+        }
+
+        .search-container { margin-bottom: 20px; }
+        .search-input { 
+            width: 100%; background: #1a1a1a; border: 1px solid #444; color: #fff; 
+            padding: 12px; border-radius: 8px; font-size: 0.9rem; outline: none; box-sizing: border-box;
+        }
+
+        .section-header-flex { display: flex; justify-content: space-between; align-items: center; margin: 25px 0 15px; }
+        .section-title { color: #ffffff; font-size: 1.2rem; border-left: 4px solid #ff0000; padding-left: 10px; margin: 0; font-weight: bold; }
+        
+        .filter-controls { display: flex; align-items: center; gap: 12px; }
+        
+        /* 件数プルダウン：1, 3, 10, 20, 30, 全部の6択 */
+        #displayCount {
+            background: #2a2a2a; color: #fff; border: 1px solid #444;
+            padding: 4px 8px; border-radius: 6px; font-size: 0.85rem; outline: none;
+        }
+
+        /* Primeトグル：最新の横並びデザイン */
+        .prime-switch-wrapper { display: inline-flex; align-items: center; gap: 6px; }
+        .prime-switch-text { font-size: 0.75rem; color: var(--prime-blue); font-weight: bold; }
+        .prime-switch { position: relative; display: inline-block; width: 34px; height: 18px; }
+        .prime-switch input { opacity: 0; width: 0; height: 0; }
+        .prime-slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333; transition: .4s; border-radius: 20px; border: 1px solid rgba(0,168,225,0.4);
+        }
+        .prime-slider:before {
+            position: absolute; content: ""; height: 12px; width: 12px; left: 2px; bottom: 2px;
+            background: white; transition: .4s; border-radius: 50%;
+        }
+        input:checked + .prime-slider { background-color: var(--prime-blue); }
+        input:checked + .prime-slider:before { transform: translateX(16px); }
+
+        .prime-loading-msg { color: var(--prime-blue); font-size: 0.85rem; text-align: center; margin: 10px 0; display: none; font-weight: bold; animation: primePulse 1.5s infinite; }
+        @keyframes primePulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+
+        /* カードデザイン（青枠は削除） */
+        .series-card { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 15px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
+        .series-header { display: flex; gap: 12px; align-items: center; border: 1px solid #00ff7f; border-radius: 8px; padding: 10px; position: relative; }
+        .series-thumb { width: 65px; aspect-ratio: 2/3; object-fit: cover; border-radius: 6px; background: #222; border: 1px solid #333; }
+        .series-info { flex: 1; }
+        .series-name { font-weight: bold; font-size: 1.05rem; color: #fff; display: block; margin-bottom: 5px; padding-right: 28px; }
+        
+        .prime-status-badge {
+            position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%;
+            font-size: 8px; font-weight: 900; display: flex; align-items: center; justify-content: center;
+            z-index: 10; border: 1px solid rgba(255,255,255,0.1); pointer-events: none;
+        }
+        .prime-status-badge.is-active { background: #00a8e1; color: #fff; box-shadow: 0 0 8px rgba(0, 168, 225, 0.4); }
+        .prime-status-badge.is-none { background: #333; color: #777; }
+
+        .progress-container { background: #333; border-radius: 10px; height: 10px; margin: 8px 0; overflow: hidden; }
+        .progress-bar { background: linear-gradient(90deg, #ff4500, #eeaa44); height: 100%; transition: width 0.6s ease; }
+        .progress-text { font-size: 0.75rem; color: #aaa; display: flex; justify-content: space-between; }
+        .comp-badge { background: #ff0000; color: #fff; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: bold; }
+
+        .series-details { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .series-details.active { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        
+        .movie-mini-card { position: relative; text-align: center; }
+        .movie-mini-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 6px; border: 1px solid #444; margin-bottom: 5px; }
+        .movie-title { font-size: 0.65rem; color: #ccc; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .movie-mini-card.watched img { border: 1px solid #eeaa44; }
+        .movie-mini-card.unwatched img { filter: grayscale(100%); opacity: 0.4; }
+        
+        .unwatched-label { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: #00ff7f; font-size: 0.6rem; padding: 1px 4px; border-radius: 3px; font-weight: bold; z-index: 2; border: 1px solid #00ff7f; }
+        .prime-overlay-btn { position: absolute; bottom: 33px; left: 0; right: 0; background: rgba(85, 85, 85, 0.9); color: #fff; font-size: 0.6rem; font-weight: bold; padding: 4px 0; border-radius: 0 0 6px 6px; z-index: 3; text-decoration: none; }
+        .prime-overlay-btn.is-active { background: rgba(0, 168, 225, 1); }
+
+        /* AI推奨枠 */
+        .recommend-container { display: flex; flex-direction: column; gap: 15px; }
+        .rec-ai-wrapper { position: relative; border-left: 4px solid #00ff7f; background: rgba(255, 255, 255, 0.03); border-radius: 0 12px 12px 0; margin-bottom: 20px; padding-bottom: 45px; }
+        .rec-card-main { display: flex; gap: 15px; padding: 15px 15px 5px; }
+        .rec-poster-large { width: 110px; aspect-ratio: 2/3; object-fit: cover; border-radius: 8px; }
+        .rec-content { flex: 1; min-width: 0; }
+        .rec-title-big { font-size: 1.1rem; color: #eeaa44; font-weight: bold; margin-bottom: 8px; display: block; }
+        .rec-meta { font-size: 0.8rem; color: #00adef; margin-bottom: 8px; }
+        .rec-desc { font-size: 0.8rem; color: #bbb; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+        .ai-message { padding: 5px 15px 5px; font-size: 0.85rem; color: #fff; }
+        .btn-prime { position: absolute; right: 15px; bottom: 15px; display: inline-block; background: #555; color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; text-decoration: none; font-weight: bold; }
+        .btn-prime.is-active { background: #00a8e1; }
+        .loading { text-align: center; padding: 50px; color: #666; }
+
+        /* ナビゲーションバーの復元（完全固定） */
+        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: flex-end; background: #000; padding: 0 5px env(safe-area-inset-bottom); z-index: 1000; height: 65px; }
+        .nav-item { flex: 1; text-align: center; text-decoration: none; height: 50px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #151515; margin: 0 2px; border-radius: 10px 10px 0 0; color: #666; font-size: 0.95rem; font-weight: bold; border-top: 1px solid #222; }
+        .nav-item.active { height: 58px; background: #222; color: #00ff7f !important; border-top: 2px solid #00ff7f; }
+    </style>
+</head>
+<body>
+<div class="container" style="padding-bottom: 100px;">
+    <div id="page-series" class="page active">
+        <h1>シリーズ分析 <span id="headerTotal" class="header-count">(-)</span></h1>
+        
+        <div class="filter-button-grid">
+            <button id="btn-pop" class="filter-btn" onclick="setFilter('pop')">人気順</button>
+            <button id="btn-date" class="filter-btn" onclick="setFilter('date')">公開順 (古↓)</button>
+            <button id="btn-fav" class="filter-btn" onclick="setFilter('fav')">お気に入り</button>
+            <button id="btn-ing" class="filter-btn active" onclick="setFilter('ing')">進行中(進捗率)</button>
+            <button id="btn-comp" class="filter-btn" onclick="setFilter('comp')">コンプリート</button>
+            <button id="btn-new" class="filter-btn" onclick="setFilter('new')">未踏</button>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="seriesSearch" class="search-input" placeholder="シリーズ名で検索" oninput="refreshView()">
+        </div>
+
+        <div class="section-header-flex">
+            <div class="section-title">コレクション進捗</div>
+            <div class="filter-controls">
+                <select id="displayCount" onchange="refreshView()">
+                    <option value="1" selected>1件</option>
+                    <option value="3">3件</option>
+                    <option value="10">10件</option>
+                    <option value="20">20件</option>
+                    <option value="30">30件</option>
+                    <option value="999">全部</option>
+                </select>
+                <div class="prime-switch-wrapper">
+                    <span class="prime-switch-text">Prime判定</span>
+                    <label class="prime-switch">
+                        <input type="checkbox" id="series-prime-toggle" onchange="toggleSeriesPrime()">
+                        <span class="prime-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div id="new-loading-msg" class="prime-loading-msg" style="display: none;">未踏の人気映画シリーズ検索中...</div>
+        <div id="prime-loading-msg" class="prime-loading-msg">Amazon prime 配信状況を確認中...</div>
+        <div id="seriesProgressList"><div class="loading">ライブラリを解析中...</div></div>
+        
+        <div class="section-title" style="margin: 25px 0 15px;">AI分析：次はこの作品が推奨です</div>
+        <div id="recommendArea" class="recommend-container"><div class="loading">最適な続編を探索中...</div></div>
+    </div>
+</div>
+
+<nav class="nav-bar">
+    <a href="index.html" class="nav-item"><span class="nav-label">傾向分析</span></a>
+    <a href="series.html" class="nav-item active"><span class="nav-label">シリーズ</span></a>
+    <a href="input.html" class="nav-item"><span class="nav-label">記録</span></a>
+    <a href="history.html" class="nav-item"><span class="nav-label">履歴</span></a>
+</nav>
+<script>
+/* ===== S30 初期設定・定数 ===== */
+    const I = {
+        ID: 0, SERIES: 1, TITLE: 2, DIR: 3, GENRE: 4, YEAR: 5, TMDB_RATE: 6, MEMO: 7,
+        IMG: 8, CTRY: 9, COMP: 10, REC: 11, STAT: 12, ACT: 13, SUB: 14, WATCH: 15
+    };
+    const IMG_PATH = "https://image.tmdb.org/t/p/w342";
+    let globalSeriesData = [];
+    let allWatchedIds = new Set();
+    
+    // デフォルトを「進行中(進捗率)」に変更
+    let currentFilter = 'ing';
+    let dateSortAsc = true;
+    let ingSortMode = 'percent'; 
+    let primeStatusCache = {};
+    let isCheckingPrime = false;
+
+    function tryJPG(imgElement) {
+        if (!imgElement.src) return;
+        imgElement.onerror = null;
+        if (imgElement.src.endsWith(".jpg")) imgElement.src = imgElement.src.replace(".jpg", ".JPG");
+        else if (imgElement.src.endsWith(".JPG")) imgElement.src = "no-image.png";
+        else imgElement.src = "no-image.png";
+    }
+
+/* ===== S40 ページ初期化・解析 ===== */
+    window.onload = async function() {
+        // datasource.js からのデータ読み込みを優先
+        const logs = (typeof loadMovies === 'function') ? loadMovies() : (window.CinemaData ? window.CinemaData.logs : []);
+        await analyzeSeries(logs);
+    };
+async function analyzeSeries(logs) {
+        const seriesMap = {};
+        const favSeriesIds = new Set();
+        allWatchedIds = new Set();
+        
+        logs.forEach(l => {
+            const mid = String(l[I.ID]).trim();
+            const sid = String(l[I.SERIES]).trim();
+            const status = String(l[I.STAT] || "");
+            
+            if (mid && mid !== "" && mid !== "---") allWatchedIds.add(mid);
+            if (sid && sid !== "---" && sid !== "") {
+                if (!seriesMap[sid]) seriesMap[sid] = { watchedIds: new Set() };
+                if (mid) seriesMap[sid].watchedIds.add(mid);
+                if (status.includes("◎")) favSeriesIds.add(sid);
+            }
+        });
+
+        const seriesIds = Object.keys(seriesMap);
+        const results = await Promise.all(seriesIds.map(async (sid) => {
+            try {
+                const data = await window.fetchSeriesDetails(sid);
+                if (data && data.parts) {
+                    const parts = data.parts.sort((a,b) => {
+                        const dateA = a.release_date || "9999-99-99";
+                        const dateB = b.release_date || "9999-99-99";
+                        return new Date(dateA) - new Date(dateB);
+                    });
+                    const watched = parts.filter(p => allWatchedIds.has(String(p.id)));
+                    return {
+                        id: sid, 
+                        name: data.name, 
+                        poster: data.poster_path ? IMG_PATH + data.poster_path : "no-image.png",
+                        total: parts.length, 
+                        watchedCount: watched.length, 
+                        percent: Math.round((watched.length / parts.length) * 100),
+                        popularity: data.popularity || 0, 
+                        isFavorite: favSeriesIds.has(sid),
+                        firstRelease: parts[0]?.release_date || "9999-99-99", 
+                        parts: parts,
+                        isAiRecommended: false // AI推奨フラグ初期化
+                    };
+                }
+            } catch (e) { return null; }
+        }));
+        
+        globalSeriesData = results.filter(r => r !== null);
+        
+        // 【重要】ローカルデータで即時描画（フリーズ防止）
+        refreshView();
+        
+        // 描画後に裏側でインテリジェンス・ソートを開始
+        runIntelligenceSort();
+    }
+
+/* ===== 新機能: AIインテリジェンス・ソート ===== */
+    async function runIntelligenceSort() {
+        const loadingMsg = document.getElementById('prime-loading-msg');
+        if(loadingMsg) loadingMsg.style.display = 'block';
+
+        // 進行中のシリーズを進捗率順に取得
+        let inProgress = globalSeriesData.filter(s => s.percent > 0 && s.percent < 100);
+        inProgress.sort((a, b) => b.percent - a.percent);
+
+        let targetSeries = null;
+
+        // 第1グループ: 進捗上位 1〜10位
+        targetSeries = await findPrimeInGroup(inProgress.slice(0, 10));
+
+        // 第2グループ: 進捗上位 11〜20位 (1〜10位にPrimeが無かった場合)
+        if (!targetSeries && inProgress.length > 10) {
+            targetSeries = await findPrimeInGroup(inProgress.slice(10, 20));
+        }
+
+        if (targetSeries) {
+            targetSeries.isAiRecommended = true; // 推奨フラグを付与
+        }
+
+        if(loadingMsg) loadingMsg.style.display = 'none';
+        
+        // フラグが付与された状態で再ソート＆描画
+        refreshView(); 
+    }
+
+    async function findPrimeInGroup(group) {
+        for (let s of group) {
+            let unwatchedParts = s.parts.filter(p => !allWatchedIds.has(String(p.id)));
+            for (let p of unwatchedParts) {
+                if (primeStatusCache[p.id] === undefined) {
+                    primeStatusCache[p.id] = await window.fetchWatchProviders(p.id);
+                }
+                if (primeStatusCache[p.id] === true) {
+                    return s; // Prime対象が見つかればそのシリーズを即返却
+                }
+            }
+        }
+        return null;
+    }
+
+/* ===== 新機能: 手動Prime判定トグル ===== */
+    async function toggleSeriesPrime() {
+        const isChecked = document.getElementById('series-prime-toggle').checked;
+        if (!isChecked) {
+            refreshView(); // トグルOFF時は即座に再描画してUIを元に戻す
+            return;
+        }
+
+        const loadingMsg = document.getElementById('prime-loading-msg');
+        if(loadingMsg) loadingMsg.style.display = 'block';
+
+        // 現在表示されているリストを取得してPrime判定
+        const limit = parseInt(document.getElementById('displayCount').value);
+        let list = getCurrentSortedList().slice(0, limit);
+        
+        await performPrimeCheckList(list);
+
+        if(loadingMsg) loadingMsg.style.display = 'none';
+        refreshView();
+    }
+
+    async function performPrimeCheckList(list) {
+        if (isCheckingPrime) return;
+        isCheckingPrime = true;
+        
+        for (const s of list) {
+            if (!s.parts || s.percent >= 100) continue; 
+            
+            for (const p of s.parts) {
+                if (allWatchedIds.has(String(p.id))) continue;
+                if (primeStatusCache[p.id] !== undefined) continue;
+                
+                const isPrime = await window.fetchWatchProviders(p.id);
+                primeStatusCache[p.id] = isPrime;
+                updatePrimeBadgeUI(s.id);
+                await new Promise(resolve => setTimeout(resolve, 600));
+            }
+        }
+        isCheckingPrime = false;
+    }
+
+    function updatePrimeBadgeUI(seriesId) {
+        const series = globalSeriesData.find(s => s.id === seriesId);
+        if (!series || series.percent >= 100) return;
+        
+        const badge = document.querySelector(`#badge-${seriesId}`);
+        if (!badge) return;
+        
+        const hasPrime = series.parts.some(p => !allWatchedIds.has(String(p.id)) && primeStatusCache[p.id] === true);
+        const allChecked = series.parts.every(p => allWatchedIds.has(String(p.id)) || primeStatusCache[p.id] !== undefined);
+        
+        if (hasPrime) {
+            badge.className = 'prime-status-badge is-active';
+            badge.innerText = 'P';
+        } else if (allChecked) {
+            badge.className = 'prime-status-badge is-none';
+            badge.innerText = 'P';
+        }
+    }
+
+    function setFilter(type) {
+        if (type === 'date' && currentFilter === 'date') dateSortAsc = !dateSortAsc;
+        else if (type === 'date') dateSortAsc = true;
+        
+        if (type === 'ing' && currentFilter === 'ing') {
+            ingSortMode = (ingSortMode === 'percent') ? 'pop' : 'percent';
+        } else if (type === 'ing') {
+            ingSortMode = 'percent';
+        }
+        
+        currentFilter = type;
+        
+        if (type === 'comp' || type === 'new') {
+            document.getElementById('displayCount').value = "999";
+        }
+        
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        const targetBtnId = (type === 'pop') ? 'btn-pop' : 
+                           (type === 'date') ? 'btn-date' : 
+                           (type === 'fav') ? 'btn-fav' : 
+                           (type === 'ing') ? 'btn-ing' : 
+                           (type === 'comp') ? 'btn-comp' : 'btn-new';
+        
+        const targetBtn = document.getElementById(targetBtnId);
+        if (targetBtn) targetBtn.classList.add('active');
+        
+        document.getElementById('btn-date').innerText = dateSortAsc ? "公開順 (古↓)" : "公開順 (新↓)";
+        document.getElementById('btn-ing').innerText = (ingSortMode === 'percent') ? "進行中(進捗率)" : "進行中(人気順)";
+        
+        document.getElementById('seriesSearch').value = "";
+        refreshView();
+    }
+
+/* ===== S50 表示リフレッシュ ===== */
+    function getCurrentSortedList() {
+        let list = [...globalSeriesData];
+        const searchText = document.getElementById('seriesSearch').value.toLowerCase();
+        
+        if (searchText) list = list.filter(s => s.name.toLowerCase().includes(searchText));
+        if (currentFilter === 'fav') list = list.filter(s => s.isFavorite);
+        else if (currentFilter === 'ing') list = list.filter(s => s.percent > 0 && s.percent < 100);
+        else if (currentFilter === 'comp') list = list.filter(s => s.percent >= 100);
+
+        if (currentFilter === 'date') {
+            list.sort((a, b) => dateSortAsc ? new Date(a.firstRelease) - new Date(b.firstRelease) : new Date(b.firstRelease) - new Date(a.firstRelease));
+        } else {
+            list.sort((a, b) => {
+                // AI推奨作品は強制的に最上位へ
+                if (a.isAiRecommended && !b.isAiRecommended) return -1;
+                if (!a.isAiRecommended && b.isAiRecommended) return 1;
+
+                if (currentFilter === 'ing') {
+                    // トグルON時はPrime配信中を優先
+                    const isPrimeToggleOn = document.getElementById('series-prime-toggle')?.checked;
+                    if (isPrimeToggleOn) {
+                        const aHasPrime = a.parts.some(p => !allWatchedIds.has(String(p.id)) && primeStatusCache[p.id] === true);
+                        const bHasPrime = b.parts.some(p => !allWatchedIds.has(String(p.id)) && primeStatusCache[p.id] === true);
+                        if (aHasPrime && !bHasPrime) return -1;
+                        if (!aHasPrime && bHasPrime) return 1;
+                    }
+
+                    if (ingSortMode === 'percent') {
+                        if (b.percent !== a.percent) return b.percent - a.percent;
+                    }
+                }
+                return b.popularity - a.popularity;
+            });
+        }
+        return list;
+    }
+
+    async function refreshView() {
+        let list = [];
+        const isPrimeToggleOn = document.getElementById('series-prime-toggle')?.checked;
+
+        if (currentFilter === 'new') {
+            const newLoadingMsg = document.getElementById('new-loading-msg');
+            if (newLoadingMsg) newLoadingMsg.style.display = 'block';
+
+            try {
+                const res = await fetch(`https://api.themoviedb.org/3/trending/movie/week?api_key=${TMDB_API_KEY}&language=ja-JP`);
+                const trend = await res.json();
+                const newSeriesList = [];
+                const processedSid = new Set();
+
+                for (let item of trend.results) {
+                    if (newSeriesList.length >= 20) break;
+                    if (allWatchedIds.has(String(item.id))) continue;
+
+                    const movieRes = await fetch(`https://api.themoviedb.org/3/movie/${item.id}?api_key=${TMDB_API_KEY}&language=ja-JP`);
+                    const movieData = await movieRes.json();
+                    
+                    if (movieData.belongs_to_collection) {
+                        const sid = String(movieData.belongs_to_collection.id);
+                        if (processedSid.has(sid) || globalSeriesData.some(s => s.id === sid)) continue;
+                        
+                        const sData = await window.fetchSeriesDetails(sid);
+                        if (sData && sData.parts) {
+                            const parts = sData.parts.sort((a,b) => new Date(a.release_date || "9999-99-99") - new Date(b.release_date || "9999-99-99"));
+                            newSeriesList.push({
+                                id: sid, name: sData.name, poster: sData.poster_path ? IMG_PATH + sData.poster_path : "no-image.png",
+                                total: parts.length, watchedCount: 0, percent: 0, popularity: sData.popularity || 0,
+                                isFavorite: false, firstRelease: parts[0]?.release_date || "9999-99-99", parts: parts, isAiRecommended: false
+                            });
+                            processedSid.add(sid);
+                        }
+                    }
+                }
+                list = newSeriesList;
+            } catch (e) { list = []; }
+
+            if (newLoadingMsg) newLoadingMsg.style.display = 'none';
+        } else {
+            list = getCurrentSortedList();
+        }
+
+        const totalMovies = list.reduce((sum, s) => sum + (typeof s.total === 'number' ? s.total : 0), 0);
+        document.getElementById('headerTotal').innerText = `(${totalMovies}本 / ${list.length}シリーズ)`;
+
+        const limit = parseInt(document.getElementById('displayCount').value);
+        const displayList = list.slice(0, limit);
+        
+        renderProgress(displayList);
+        renderRecommendations(globalSeriesData);
+
+        // トグルONかつコンプリートタブ以外なら裏側でPrimeチェック
+        if (currentFilter !== 'comp' && isPrimeToggleOn) {
+            performPrimeCheckList(displayList);
+        }
+    }
+
+/* ===== S60 進捗UI描画 (変数展開を最適化) ===== */
+    function renderProgress(list) {
+        const container = document.getElementById('seriesProgressList');
+        if (list.length === 0) {
+            container.innerHTML = `<div class="loading">条件に合うシリーズがありません</div>`;
+            return;
+        }
+        
+        const isExpandSearch = document.getElementById('seriesSearch').value !== "" || currentFilter === 'comp' || currentFilter === 'new';
+        const isPrimeToggleOn = document.getElementById('series-prime-toggle')?.checked;
+
+        let htmlStr = "";
+        for (let s of list) {
+            // AI推奨品は強制展開
+            const isExpand = isExpandSearch || s.isAiRecommended;
+
+            let badgeHtml = '';
+            if (currentFilter !== 'comp' && s.percent < 100 && isPrimeToggleOn) {
+                const hasPrime = s.parts.some(p => !allWatchedIds.has(String(p.id)) && primeStatusCache[p.id] === true);
+                const allChecked = s.parts.every(p => allWatchedIds.has(String(p.id)) || primeStatusCache[p.id] !== undefined);
+                let badgeClass = 'is-none';
+                if (hasPrime) badgeClass = 'is-active';
+                else if (!allChecked) badgeClass = ''; 
+                
+                badgeHtml = `<div id="badge-${s.id}" class="prime-status-badge ${badgeClass}">${badgeClass ? 'P' : ''}</div>`;
+            }
+
+            let cardClass = s.isAiRecommended ? "series-card highlight-prime" : "series-card";
+            let detailsClass = isExpand ? "series-details active" : "series-details";
+            let compBadge = s.percent >= 100 ? '<span class="comp-badge">COMPLETED</span>' : '';
+
+            let partsHtml = "";
+            if (s.parts && s.parts.length > 0) {
+                let pArr = [];
+                for (let p of s.parts) {
+                    const isWatched = allWatchedIds.has(String(p.id));
+                    const isPrime = primeStatusCache[p.id] === true;
+                    
+                    let clickAction = isWatched 
+                        ? `onclick="event.stopPropagation(); window.location.href='history.html?query=${encodeURIComponent(p.title)}'"`
+                        : `onclick="event.stopPropagation(); jumpToInput(${JSON.stringify(p).replace(/"/g, '&quot;')}, '${s.id}')"`;
+                    
+                    let unwatchedLabel = !isWatched ? '<div class="unwatched-label">未視聴</div>' : '';
+                    let primeBtnClass = isPrime ? "prime-overlay-btn is-active" : "prime-overlay-btn";
+                    let primeBtnText = isPrime ? "Prime配信中" : "Primeで検索";
+                    let primeBtn = (!isWatched && (isPrimeToggleOn || isPrime)) 
+                        ? `<a href="https://www.amazon.co.jp/s?k=${encodeURIComponent(p.title)}" target="_blank" id="list-btn-${p.id}" class="${primeBtnClass}" onclick="event.stopPropagation();">${primeBtnText}</a>` 
+                        : (!isWatched ? `<a href="https://www.amazon.co.jp/s?k=${encodeURIComponent(p.title)}" target="_blank" id="list-btn-${p.id}" class="prime-overlay-btn" onclick="event.stopPropagation();">Primeで検索</a>` : "");
+                    
+                    let imgStyle = isWatched ? "watched" : "unwatched";
+                    let posterSrc = p.poster_path ? IMG_PATH + p.poster_path : 'no-image.png';
+
+                    pArr.push(`
+                        <div class="movie-mini-card ${imgStyle}" ${clickAction}>
+                            ${unwatchedLabel}
+                            ${primeBtn}
+                            <img src="${posterSrc}" onerror="tryJPG(this)">
+                            <div class="movie-title">${p.title}</div>
+                        </div>
+                    `);
+                }
+                partsHtml = pArr.join('');
+            } else {
+                partsHtml = `<div style="grid-column: span 3; color: #666; font-size: 0.8rem; text-align: center; padding: 10px;">詳細データ取得中...</div>`;
+            }
+
+            htmlStr += `
+            <div class="${cardClass}" onclick="toggleAccordion('${s.id}')">
+                <div class="series-header">
+                    ${badgeHtml} <img src="${s.poster}" class="series-thumb" onerror="tryJPG(this)">
+                    <div class="series-info">
+                        <span class="series-name">${s.name}${compBadge}</span>
+                        <div class="progress-container"><div class="progress-bar" style="width: ${s.percent}%"></div></div>
+                        <div class="progress-text"><span>進捗: ${s.percent}%</span><span>${s.watchedCount} / ${s.total} 作品</span></div>
+                    </div>
+                </div>
+                <div id="details-${s.id}" class="${detailsClass}">
+                    ${partsHtml}
+                </div>
+            </div>
+            `;
+        }
+        container.innerHTML = htmlStr;
+    }
+
+/* ===== S70 AI推奨ロジック ===== */
+    async function renderRecommendations(list) {
+        const container = document.getElementById('recommendArea');
+        const candidates = [];
+        for (const s of list) {
+            if (s.percent < 100) {
+                const unwatched = s.parts.filter(p => !allWatchedIds.has(String(p.id))).sort((a,b) => new Date(a.release_date || "9999-99-99") - new Date(b.release_date || "9999-99-99"));
+                if (unwatched[0]) candidates.push({ ...unwatched[0], seriesName: s.name, seriesId: s.id });
+            }
+        }
+        if (candidates.length === 0) {
+            container.innerHTML = '<div class="ai-message">全てのシリーズを走破しました！</div>';
+            return;
+        }
+        candidates.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+
+        const checkLimit = Math.min(candidates.length, 12);
+        for (let i = 0; i < checkLimit; i++) {
+            const item = candidates[i];
+            if (primeStatusCache[item.id] === undefined) {
+                primeStatusCache[item.id] = await window.fetchWatchProviders(item.id);
+            }
+            item.isPrime = primeStatusCache[item.id];
+        }
+
+        const finalRecs = candidates.sort((a, b) => {
+            if (a.isPrime && !b.isPrime) return -1;
+            if (!a.isPrime && b.isPrime) return 1;
+            return (b.popularity || 0) - (a.popularity || 0);
+        }).slice(0, 3);
+
+        container.innerHTML = finalRecs.map(r => `
+            <div class="rec-ai-wrapper">
+                <div class="rec-card-main" onclick="jumpToInput(${JSON.stringify(r).replace(/"/g, '&quot;')}, '${r.seriesId}')">
+                    <img src="${r.poster_path ? IMG_PATH + r.poster_path : 'no-image.png'}" class="rec-poster-large" onerror="tryJPG(this)">
+                    <div class="rec-content">
+                        <span class="rec-title-big">${r.title}</span>
+                        <div class="rec-meta">シリーズ: ${r.seriesName}<br>公開: ${r.release_date || '不明'}</div>
+                        <div class="rec-desc">${r.overview || '作品詳細データを取得中...'}</div>
+                    </div>
+                </div>
+                <div class="ai-message">${generateAIMessage(r)}</div>
+                <a href="https://www.amazon.co.jp/s?k=${encodeURIComponent(r.title)}" target="_blank" class="btn-prime ${r.isPrime ? 'is-active' : ''}">${r.isPrime ? 'Prime配信中：今すぐ観る' : 'Prime Video で検索'}</a>
+            </div>
+        `).join('');
+    }
+
+    function generateAIMessage(movie) {
+        if (movie.isPrime) return `久康さん、この続編は現在Primeで配信中です。シリーズ完走へ向けた絶好のタイミングですね！`;
+        const msgs = [`シリーズ完走まであと少し。この傑作をライブラリに。`, `物語は核心へ。あなたのコレクションを完成させる一作です。`, `人気と評価を兼ね備えた続編です。今すぐチェックを！`];
+        return msgs[Math.floor(Math.random() * msgs.length)];
+    }
+
+/* ===== S80 イベント処理 ===== */
+    function toggleAccordion(id) {
+        const el = document.getElementById(`details-${id}`);
+        if (!el) return;
+        el.classList.toggle('active');
+        
+        const series = globalSeriesData.find(s => s.id === id);
+        if (series && series.parts) {
+            series.parts.forEach(p => {
+                if (!allWatchedIds.has(String(p.id)) && primeStatusCache[p.id] === true) {
+                    const btn = document.getElementById(`list-btn-${p.id}`);
+                    if (btn) {
+                        btn.classList.add('is-active');
+                        btn.innerText = 'Prime配信中';
+                    }
+                }
+            });
+        }
+    }
+
+    async function jumpToInput(p, seriesId) {
+        let fullData = p;
+        try {
+            const detailRes = await fetch(`https://api.themoviedb.org/3/movie/${p.id}?api_key=${TMDB_API_KEY}&language=ja-JP&append_to_response=credits`);
+            fullData = await detailRes.json();
+        } catch (e) { console.error(e); }
+
+        const recMovie = {
+            tmdbId: fullData.id, seriesId: seriesId || "", tmdbVote: fullData.vote_average || 0,
+            title: fullData.title || "", director: fullData.credits?.crew?.find(c => c.job === "Director")?.name || "",
+            leadActor: fullData.credits?.cast?.[0]?.name || "", subActors: fullData.credits?.cast?.[1]?.name || "",
+            genre: fullData.genres?.[0]?.name || "アクション", comment: fullData.overview || "",
+            releaseFullDate: fullData.release_date || "", country: fullData.production_countries?.map(c => c.name).join(', ') || "",
+            company: fullData.production_companies?.map(c => c.name).join(', ') || "", recommended: "", 
+            imageUrl: fullData.poster_path ? 'https://image.tmdb.org/t/p/w500' + fullData.poster_path : "", status: "□"
+        };
+        sessionStorage.setItem('recMovie', JSON.stringify(recMovie));
+        window.location.href = 'input.html?from=rec';
+    }
+</script>
+</body>
+</html>

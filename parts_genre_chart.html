@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script src="datasource.js"></script>
+    <script src="tmdb_api.js"></script>
+    <script src="common.js"></script>
+    <style>
+        :root { --accent: #e50914; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: #141414; 
+            color: #fff; 
+            font-family: sans-serif;
+            overflow: hidden;
+        }
+        .chart-wrapper {
+            margin: 0;
+            padding: 12px;
+            height: 230px; 
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            max-width: 100% !important;
+            max-height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chart-wrapper">
+    <canvas id="genreChart"></canvas>
+</div>
+
+<script>
+    // 16列規律：5列目（インデックス4）をジャンルとする
+    const GENRE_COLUMN_INDEX = 4;
+
+    const partsCenterTextPlugin = {
+        id: 'centerText',
+        afterDraw(chart) {
+            const { ctx, chartArea: { top, bottom, left, right, width, height } } = chart;
+            const total = chart.config.data.datasets[0].data.reduce((a, b) => a + b, 0);
+            ctx.save();
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText('TOTAL', width / 2 + left, height / 2 + top - 10);
+            ctx.font = 'bold 18px sans-serif';
+            ctx.fillText(total + '本', width / 2 + left, height / 2 + top + 10);
+            ctx.restore();
+        }
+    };
+
+    // 立体感（グロス・面取り）を付与するカスタムプラグイン
+    const glossyEffectPlugin = {
+        id: 'glossyEffect',
+        afterDatasetsDraw(chart) {
+            const { ctx, chartArea: { left, top, width, height } } = chart;
+            const meta = chart.getDatasetMeta(0);
+            
+            ctx.save();
+            meta.data.forEach((element, index) => {
+                const { startAngle, endAngle, innerRadius, outerRadius, x, y } = element;
+
+                // 1. パーツ上面のグロス（光沢）をシミュレート
+                const glossGrad = ctx.createRadialGradient(x, y, innerRadius, x, y, outerRadius);
+                glossGrad.addColorStop(0, 'rgba(0,0,0,0.4)');     // 内側の影
+                glossGrad.addColorStop(0.1, 'rgba(0,0,0,0)');    
+                glossGrad.addColorStop(0.45, 'rgba(255,255,255,0.35)'); // 中央の光沢
+                glossGrad.addColorStop(0.55, 'rgba(255,255,255,0.1)');
+                glossGrad.addColorStop(0.9, 'rgba(0,0,0,0)');
+                glossGrad.addColorStop(1, 'rgba(0,0,0,0.5)');     // 外側の影
+
+                ctx.fillStyle = glossGrad;
+                ctx.beginPath();
+                ctx.arc(x, y, outerRadius, startAngle, endAngle);
+                ctx.arc(x, y, innerRadius, endAngle, startAngle, true);
+                ctx.closePath();
+                ctx.fill();
+
+                // 2. 面取り（エッジハイライト）
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+            ctx.restore();
+        }
+    };
+
+    window.onload = function() {
+        const logs = typeof loadMovies === 'function' ? loadMovies() : [];
+        if (logs && logs.length > 0) {
+            renderGenreChart(logs);
+        }
+    };
+
+    function renderGenreChart(logs) {
+        const g = {};
+        let totalCount = 0;
+        
+        logs.forEach(l => {
+            const genreName = l[GENRE_COLUMN_INDEX];
+            if(genreName && genreName !== "---") {
+                g[genreName] = (g[genreName] || 0) + 1;
+                totalCount++;
+            }
+        });
+
+        const sortedG = Object.entries(g).sort((x, y) => y[1] - x[1]);
+        const gLabels = sortedG.map(e => e[0]);
+        const gData = sortedG.map(e => e[1]);
+        
+        // オリジナルの色彩規律
+        const rankingColors = ['#e50914', '#0071eb', '#ffbc0d', '#d63384', '#46d369', '#888888', '#fd7e14', '#6f42c1', '#795548'];
+        
+        const ctx = document.getElementById('genreChart').getContext('2d');
+        if (window.myChart) window.myChart.destroy();
+        
+        window.myChart = new Chart(ctx, {
+            type: 'doughnut',
+            // 新しいグロスプラグインを追加
+            plugins: [ChartDataLabels, partsCenterTextPlugin, glossyEffectPlugin],
+            data: { 
+                labels: gLabels, 
+                datasets: [{ 
+                    data: gData, 
+                    backgroundColor: rankingColors.slice(0, gLabels.length),
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1
+                }] 
+            },
+            options: { 
+                maintainAspectRatio: false, 
+                cutout: '50%', // 黄金バランス死守
+                layout: { padding: { right: 10 } }, // 凡例バランス死守
+                onClick: (evt, elements) => { 
+                    if (elements.length > 0) { 
+                        const query = gLabels[elements[0].index];
+                        if (parent && parent.location) {
+                            parent.location.href = `history.html?query=${encodeURIComponent(query)}&type=title&exact=true`;
+                        }
+                    } 
+                }, 
+                plugins: { 
+                    legend: { 
+                        position: 'right', 
+                        labels: { 
+                            color: '#fff',
+                            boxWidth: 15,
+                            padding: 8,
+                            font: { size: 11 }
+                        } 
+                    }, 
+                    datalabels: { 
+                        color: '#fff', 
+                        font: { weight: 'bold' },
+                        formatter: (v) => {
+                            if (totalCount === 0) return "0%";
+                            return Math.round((v / totalCount) * 100) + "%";
+                        }
+                    } 
+                } 
+            }
+        });
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+/* --- 基準コードのスタイルを完全維持 --- */
+:root { --primary: #e50914; --bg: #111; --card: #222; --text: #eee; --accent: #46d369; --bad: #888; --info-blue: #00bfff; }
+body { font-family: -apple-system, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding-bottom: 60px; }
+
+.nav-bar { 
+    position: fixed; bottom: 0; width: 100%; background: #ccc; display: flex; 
+    border-top: 1px solid #999; z-index: 1000; padding-bottom: env(safe-area-inset-bottom); height: 40px; 
+}
+.nav-item { 
+    flex: 1; padding: 0; display: flex; align-items: center; justify-content: center; 
+    background: none; border: none; color: #000; font-weight: bold; font-size: 0.9rem; cursor: pointer; 
+    text-decoration: none; /* リンク化のため追加 */
+}
+.nav-item.active { color: var(--primary); border-top: 2px solid var(--primary); background: #eee; }
+
+.container { padding: 15px; max-width: 600px; margin: 0 auto; }
+/* 分割後は常に表示するため .page { display: none; } は無効化されますが、干渉を防ぐため記述は残します */
+.page { display: block; } 
+.card { background: var(--card); border-radius: 16px; padding: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+h1 { font-size: 1.4rem; color: var(--primary); margin-top: 0; }
+h2 { font-size: 1.05rem; border-left: 4px solid var(--primary); padding-left: 10px; margin: 15px 0; display: flex; justify-content: space-between; align-items: center; white-space: nowrap; }
+
+.limit-select { width: 60px; font-size: 0.7rem; padding: 3px; background: #333; color: #fff; border: 1px solid #888; border-radius: 4px; margin-left: 10px; flex-shrink: 0; }
+
+input, textarea, select { 
+    width: 100%; padding: 12px; margin-top: 8px; border-radius: 10px; border: 1px solid #888; 
+    background: #111; color: #fff; box-sizing: border-box; font-size: 16px; appearance: none; -webkit-appearance: none;
+}
+
+input[type="date"] { height: 48px; line-height: 24px; position: relative; }
+input[type="date"]::before { content: "公開日"; position: absolute; left: 12px; color: #888; pointer-events: none; width: 100%; }
+input[type="date"]:focus::before, input[type="date"]:valid::before { display: none; content: ""; }
+
+.action-group { display: flex; gap: 10px; margin-top: 15px; }
+.btn-save { flex: 2; padding: 16px; background: var(--primary); color: #fff; border: none; border-radius: 12px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
+.btn-reset { flex: 1; padding: 16px; background: #444; color: #fff; border: none; border-radius: 12px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+
+.search-row { display: flex; gap: 8px; align-items: stretch; margin-top: 8px; }
+.search-row input { margin-top: 0; }
+.btn-search { width: 70px; background: #555; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: bold; }
+
+.csv-menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.btn-csv { background: #444; color: #fff; border: none; padding: 15px 5px; border-radius: 10px; font-size: 1.05rem; font-weight: bold; cursor: pointer; }
+
+.sort-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.sort-btn { padding: 12px 4px; background: #333; border: 1px solid #444; border-radius: 8px; color: #fff; font-size: 0.75rem; text-align: center; cursor: pointer; }
+.sort-btn.active { background: var(--primary); font-weight: bold; }
+
+.replace-container { display: flex; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #444; align-items: stretch; }
+.replace-inputs { flex: 1; display: flex; flex-direction: column; gap: 0; }
+.replace-inputs input { margin-top: 5px; }
+.btn-data { width: 70px; background: #444; color: #fff; border: none; border-radius: 10px; font-size: 0.75rem; cursor: pointer; margin-top: 5px; }
+
+.log-card { background: #1a1a1a; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 5px solid var(--primary); position: relative; line-height: 1.5; }
+.log-card strong.movie-title { display: block; padding-right: 40px; word-wrap: break-word; overflow-wrap: break-word; line-height: 1.4; font-size: 1.1rem; color: #fff; }
+.status-mark { position: absolute; right: 15px; top: 15px; font-size: 1.2rem; color: var(--accent); z-index: 1; }
+
+.info-label { color: var(--info-blue); font-size: 0.7rem; font-weight: bold; margin-top: 8px; display: block; }
+.info-content { color: #ccc; font-size: 0.85rem; margin-bottom: 4px; }
+
+.log-actions { margin-top: 15px; display: flex; gap: 8px; border-top: 1px solid #333; padding-top: 10px; }
+.btn-copy-log, .btn-edit-log, .btn-delete-log { flex: 1; padding: 8px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; border: 1px solid; }
+.btn-copy-log { background: #333; color: #fff; border-color: #555; }
+.btn-edit-log { background: #333; color: #fff; border-color: #555; }
+.btn-delete-log { background: #442222; color: #ff6666; border-color: #663333; }
+
+/* --- シリーズヘッダー：140%サイズ (50x75 -> 70x105) --- */
+.series-header { display: flex; gap: 12px; background: #2a2a2a; border-radius: 12px; padding: 10px; margin-bottom: 8px; align-items: center; border: 1px solid var(--accent); cursor: pointer; position: relative; }
+.series-logo { width: 70px; height: 105px; border-radius: 4px; object-fit: cover; background: #333; flex-shrink: 0; }
+.series-info { flex: 1; }
+.series-title { font-weight: bold; color: var(--accent); font-size: 0.95rem; }
+.series-count { font-size: 0.7rem; color: #bbb; display: block; }
+.series-arrow { color: #888; font-size: 0.8rem; margin-right: 5px; }
+.series-content { display: none; padding: 0 5px 10px 15px; margin-bottom: 12px; border-left: 2px solid #444; }
+.series-content.active { display: block; }
+
+/* --- ジャンル・監督・俳優カード：150%サイズ (90x135 -> 135x202) --- */
+.rec-item { display: flex; gap: 12px; background: #222; border-radius: 12px; padding: 10px; margin-bottom: 8px; align-items: flex-start; border: 1px solid #555; }
+.rec-img { width: 135px; height: 202px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: #333; }
+.rec-content { flex: 1; word-wrap: break-word; }
+.rec-title { font-weight: bold; color: #eee; font-size: 0.95rem; margin-bottom: 4px; display: block; }
+.rec-desc { font-size: 0.75rem; color: #aaa; line-height: 1.4; }
+.rec-btn { display: inline-block; margin-top: 8px; padding: 6px 12px; background: #444; color: #fff; border-radius: 4px; text-decoration: none; font-size: 0.7rem; }
+
+.rank-item { display: flex; justify-content: space-between; padding: 12px; background: #2a2a2a; margin-bottom: 8px; border-radius: 10px; border: 1px solid #888; cursor: pointer; }
+.chart-wrapper { position: relative; width: 100%; height: 220px; }
+.btn-ai-run { width: 100%; padding: 14px; background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 12px; font-weight: bold; cursor: pointer; margin-bottom: 15px; font-size: 16px; }
+
+/* --- 検索結果：150%サイズ (60x90 -> 90x135) --- */
+.search-results-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; display: none; overflow-y: auto; padding: 20px; box-sizing: border-box; }
+.search-results-container { max-width: 500px; margin: 0 auto; background: #222; border-radius: 16px; padding: 15px; }
+.search-item { display: flex; gap: 10px; padding: 10px; border-bottom: 1px solid #444; cursor: pointer; }
+.search-item:last-child { border-bottom: none; }
+.search-item img { width: 90px; height: 135px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>履歴 - 映画鑑賞管理 Pro</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="style.css">
+    <script src="datasource.js"></script>
+    <script src="tmdb_api.js"></script>
+    <script src="common.js"></script>
+    <style>
+        /* 遵守事項：色彩・レイアウトの完全維持 */
+        #page-history h1 { color: #00adef; }
+        .admin-data-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+            margin-top: 15px; padding: 15px 0; border-top: 1px dashed rgba(0, 173, 239, 1.0);
+        }
+        .admin-item { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 4px; }
+        .admin-label { display: block; font-size: 0.75rem; color: #00adef; margin-bottom: 4px; font-weight: bold; }
+        .admin-value { font-size: 0.85rem; color: #eeaa44; word-break: break-all; }
+        .full-width { grid-column: span 2; }
+
+        .sort-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            margin-bottom: 15px;
+            background: #000;
+            padding: 2px;
+            border-radius: 8px;
+            border: 1px solid #111;
+        }
+        .sort-btn {
+            padding: 12px 2px;
+            border: none;
+            background: linear-gradient(to bottom, #002244 0%, #001122 100%);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            border-top: 1px solid #004488;
+        }
+        .sort-btn:nth-child(1) { border-radius: 6px 0 0 0; }
+        .sort-btn:nth-child(3) { border-radius: 0 6px 0 0; }
+        .sort-btn:nth-child(4) { border-radius: 0 0 0 6px; }
+        .sort-btn:nth-child(6) { border-radius: 0 0 6px 0; }
+        .sort-btn.active {
+            background: linear-gradient(to bottom, #00adef 0%, #005577 100%) !important;
+            color: #fff !important;
+            border-top: 1px solid #88eeff;
+            box-shadow: 0 0 15px rgba(0, 173, 239, 0.3);
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+            z-index: 2;
+        }
+
+.card-main-row 
+{ display: flex; gap: 15px; margin: 10px 0; }
+
+
+        .poster-box { flex: 0 0 50%; max-width: 50%; }
+        .poster-img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 6px; background: #222; }
+        .info-box { flex: 0 0 50%; max-width: 50%; }
+
+
+
+        #historySearch { 
+            width: 100%; background: #1a1a1a; border: 1px solid #444; color: #fff; 
+            padding: 12px; border-radius: 8px; font-size: 0.9rem; outline: none; box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+        .log-card { background: rgba(255,255,255,0.03); border-radius: 12px; padding: 15px; margin-bottom: 20px; position: relative; border: 1px solid #00adef; }
+        .status-mark { position: absolute; top: 10px; right: 15px; font-size: 1.2rem; }
+        .movie-title { font-size: 1.1rem; color: #fff; display: block; margin-bottom: 5px; padding-right: 30px; }
+        
+        /* 遵守事項：項目名の文字色(#00adef)とレイアウト(上下分離)を維持 */
+        .info-label { 
+            display: block; 
+            font-size: 0.7rem; 
+            color: #00adef; 
+            margin-top: 8px; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+        }
+        .info-content { font-size: 0.85rem; color: #ccc; line-height: 1.4; }
+
+        .log-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .log-actions button { 
+            flex: 1; padding: 10px 5px; border-radius: 6px; border: none; 
+            font-size: 0.85rem; font-weight: bold; cursor: pointer; color: #fff; 
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        .btn-copy-log, .btn-edit-log { 
+            background: linear-gradient(to bottom, #333 0%, #1a1a1a 100%);
+            border-top: 1px solid #555;
+        }
+        .btn-delete-log { 
+            background: linear-gradient(to bottom, #661111 0%, #330000 100%);
+            border-top: 1px solid #882222;
+        }
+
+        .nav-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; align-items: flex-end;
+            background: #000;
+            padding: 0 5px env(safe-area-inset-bottom);
+            z-index: 1000;
+            height: 65px;
+        }
+        .nav-item {
+            flex: 1; position: relative;
+            text-align: center; text-decoration: none;
+            height: 50px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: #151515;
+            margin: 0 2px;
+            border-radius: 10px 10px 0 0;
+            color: #666; font-size: 0.95rem; font-weight: bold;
+            transition: all 0.3s ease;
+            border-top: 1px solid #222;
+        }
+        .nav-item.active {
+            height: 58px;
+            background: #222;
+            color: #fff;
+            border-top: 2px solid currentColor;
+            z-index: 2;
+        }
+        .active-history { 
+            color: #00adef !important; 
+            border-top-color: #00adef !important; 
+            box-shadow: 0 -5px 15px rgba(0, 173, 239, 0.1); 
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" style="padding-bottom: 100px;">
+    <div id="page-history" class="page active">
+        <h1>鑑賞履歴 (<span id="logCount">0</span>本)</h1>
+        
+        <div class="sort-controls">
+            <button class="sort-btn active" id="sort-title" onclick="setSort('title')">タイトル順</button>
+            <button class="sort-btn" id="sort-date" onclick="setSort('date')">公開日順</button>
+            <button class="sort-btn" id="sort-director" onclick="setSort('director')">監督順</button>
+            <button class="sort-btn" id="sort-actor" onclick="setSort('actor')">俳優順</button>
+            <button class="sort-btn" id="sort-fav" onclick="setSort('fav')">お気に入り</button>
+            <button class="sort-btn" id="sort-bad" onclick="setSort('bad')">駄作</button>
+        </div>
+
+        <input type="text" id="historySearch" placeholder="映画タイトルで検索..." oninput="renderHistory()">
+        
+        <div id="historyList"></div>
+    </div>
+</div>
+
+<nav class="nav-bar">
+    <a href="index.html" class="nav-item">
+        <span class="nav-label">傾向分析</span>
+    </a>
+    <a href="series.html" class="nav-item">
+        <span class="nav-label">シリーズ</span>
+    </a>
+    <a href="input.html" class="nav-item">
+        <span class="nav-label">記録</span>
+    </a>
+    <a href="history.html" class="nav-item active active-history">
+        <span class="nav-label">履歴</span>
+    </a>
+</nav>
+
+<script>
+    window.logs = [];
+    window.currentSort = 'title';
+
+    const I = {
+        ID: 0, SERIES: 1, TITLE: 2, DIR: 3, GENRE: 4, YEAR: 5, RATE: 6, MEMO: 7,
+        IMG: 8, CTRY: 9, COMP: 10, REC: 11, STAT: 12, ACT: 13, SUB: 14, WATCH: 15
+    };
+
+    const genreImages = {
+        'アクション': 'action.jpg', 'アニメ': 'anime.jpg', 'コメディ': 'comedy.jpg',
+        'ドラマ': 'drama.jpg', 'ファンタジー': 'fantasy.jpg', 'ホラー': 'horror.jpg',
+        'ミステリー': 'mystery.jpg', 'SF': 'sf.jpg', 'サスペンス': 'suspense.jpg'
+    };
+
+    window.onload = function() {
+        window.logs = loadMovies();
+        const params = new URLSearchParams(window.location.search);
+        const query = params.get('query');
+        const type = params.get('type'); 
+        if (query) {
+            document.getElementById('historySearch').value = query;
+            if (type === 'director' || type === 'actor') {
+                setSort(type, false); 
+            }
+        }
+        renderHistory();
+    };
+
+    function tryJPG(imgElement) {
+        if (imgElement.src.endsWith(".jpg")) {
+            imgElement.src = imgElement.src.replace(".jpg", ".JPG");
+        } else if (imgElement.src.endsWith(".JPG")) {
+            imgElement.src = "no-image.png";
+        } else {
+            imgElement.onerror = null;
+            imgElement.src = "no-image.png";
+        }
+    }
+
+    function renderHistory() {
+        const sw = document.getElementById('historySearch').value.trim();
+        let list = [...window.logs];
+        
+        if (sw) {
+            list = list.filter(l => {
+                // 対策：分割されたジャンル(I.GENRE)を明確に検索対象に含める
+                const genreMatch = (l[I.GENRE] || "").includes(sw);
+                
+                switch(window.currentSort) {
+                    case 'director': 
+                        return (l[I.DIR] || "").includes(sw) || genreMatch;
+                    case 'actor': 
+                        return (l[I.ACT] || "").includes(sw) || (l[I.SUB] || "").includes(sw) || genreMatch;
+                    case 'date': 
+                        return (l[I.YEAR] || "").includes(sw) || genreMatch;
+                    case 'fav':
+                    case 'bad':
+                        return (l[I.TITLE] || "").includes(sw) || genreMatch;
+                    default: 
+                        // タイトル順の時も、映画タイトル または ジャンル名でヒットするように定義
+                        return (l[I.TITLE] || "").includes(sw) || genreMatch;
+                }
+            });
+        }
+
+        if (window.currentSort === 'title') {
+            list.sort((a,b) => (a[I.TITLE]||"").localeCompare(b[I.TITLE]||"", 'ja'));
+        } else if (window.currentSort === 'date') {
+            list.sort((a,b) => (b[I.YEAR] || "").localeCompare(a[I.YEAR] || ""));
+        } else if (window.currentSort === 'director') {
+            list.sort((a,b) => (a[I.DIR]||"").localeCompare(b[I.DIR]||"", 'ja'));
+        } else if (window.currentSort === 'actor') {
+            list.sort((a,b) => (a[I.ACT]||"").localeCompare(b[I.ACT]||"", 'ja'));
+        } else if (window.currentSort === 'fav') {
+            list = list.filter(l => l[I.STAT] === '◎').sort((a,b) => (a[I.TITLE]||"").localeCompare(b[I.TITLE]||"", 'ja'));
+        } else if (window.currentSort === 'bad') {
+            list = list.filter(l => l[I.STAT] === '×').sort((a,b) => (a[I.TITLE]||"").localeCompare(b[I.TITLE]||"", 'ja'));
+        }
+        
+        document.getElementById('logCount').innerText = list.length;
+        const IMG_PATH = "https://image.tmdb.org/t/p/w185";
+
+        document.getElementById('historyList').innerHTML = list.map(l => {
+            let secureKey = "";
+            const datePattern = /\d{4}\/\d{1,2}\/\d{1,2}/;
+            const foundDate = l.find(item => item && typeof item === 'string' && datePattern.test(item));
+            if (foundDate) secureKey = foundDate;
+            else secureKey = l[I.WATCH] || l[I.TITLE] || 'unknown';
+
+            let poster = "no-image.png";
+            if (l[I.IMG] && l[I.IMG] !== "---") {
+                poster = IMG_PATH + l[I.IMG];
+            } else if (l[I.GENRE] && genreImages[l[I.GENRE]]) {
+                poster = genreImages[l[I.GENRE]];
+            }
+
+            return `
+            <div class="log-card">
+                <div class="status-mark">${l[I.STAT] || ''}</div>
+                <strong class="movie-title">${l[I.TITLE] || 'タイトル不明'}</strong>
+                <div class="card-main-row">
+                    <div class="poster-box"><img src="${poster}" class="poster-img" loading="lazy" onerror="tryJPG(this)"></div>
+                    <div class="info-box">
+                        <span class="info-label">監督</span><div class="info-content">${l[I.DIR] || '未設定'}</div>
+                        <span class="info-label">出演者</span><div class="info-content">主演: ${l[I.ACT] || '未設定'}<br>助演: ${l[I.SUB] || ''}</div>
+                        <span class="info-label">公開日</span><div class="info-content">${l[I.YEAR] || '不明'}</div>
+                        <span class="info-label">ジャンル</span><div class="info-content">${l[I.GENRE] || '未設定'}</div>
+                    </div>
+                </div>
+                <span class="info-label">映画紹介・メモ</span><div class="info-content" style="white-space: pre-wrap;">${l[I.MEMO] || '（未入力）'}</div>
+                <div class="admin-data-grid">
+                    <div class="admin-item"><span class="admin-label">TMDB ID</span><div class="admin-value">${(l[I.ID] === "" || l[I.ID] === undefined) ? '0' : l[I.ID]}</div></div>
+                    <div class="admin-item"><span class="admin-label">シリーズID</span><div class="admin-value">${l[I.SERIES] || '---'}</div></div>
+                    <div class="admin-item"><span class="admin-label">評価</span><div class="admin-value" style="color:#ffff00;">${l[I.RATE] || '0'}</div></div>
+                    <div class="admin-item"><span class="admin-label">制作国</span><div class="admin-value">${l[I.CTRY] || '---'}</div></div>
+                    <div class="admin-item full-width"><span class="admin-label">制作会社</span><div class="admin-value">${l[I.COMP] || '---'}</div></div>
+                    <div class="admin-item full-width"><span class="admin-label">推奨作品</span><div class="admin-value">${l[I.REC] || '---'}</div></div>
+                    <div class="admin-item full-width"><span class="admin-label">データ登録日時</span><div class="admin-value" style="color:#888; font-size:0.75rem;">${secureKey}</div></div>
+                </div>
+                <div class="log-actions">
+                    <button class="btn-copy-log" onclick="copyLog('${secureKey}')">流用</button>
+                    <button class="btn-edit-log" onclick="editLog('${secureKey}')">編集</button>
+                    <button class="btn-delete-log" onclick="deleteLog('${secureKey}')">削除</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function setSort(s, clearSearch = true) { 
+        window.currentSort = s; 
+        if (clearSearch) document.getElementById('historySearch').value = "";
+        document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('sort-' + s)?.classList.add('active');
+        const searchInput = document.getElementById('historySearch');
+        if (s === 'director') searchInput.placeholder = "監督名で検索...";
+        else if (s === 'actor') searchInput.placeholder = "俳優名で検索...";
+        else if (s === 'date') searchInput.placeholder = "公開年(YYYY)で検索...";
+        else if (s === 'fav') searchInput.placeholder = "お気に入り内をタイトル検索...";
+        else if (s === 'bad') searchInput.placeholder = "駄作内をタイトル検索...";
+        else searchInput.placeholder = "映画タイトルで検索...";
+        renderHistory(); 
+    }
+
+    function deleteLog(timestamp) { 
+        if(!timestamp) return;
+        if(confirm("この履歴を削除しますか？")) { 
+            const movies = loadMovies();
+            const newMovies = movies.filter(m => !m.some(cell => String(cell) === String(timestamp)));
+            saveMovies(newMovies);
+            window.logs = newMovies;
+            renderHistory(); 
+        } 
+    }
+    function editLog(timestamp) { if(!timestamp) return; window.location.href = `input.html?key=${encodeURIComponent(timestamp)}`; }
+    function copyLog(timestamp) { if(!timestamp) return; window.location.href = `input.html?key=${encodeURIComponent(timestamp)}&copy=true`; }
+</script>
+</body>
+</html>

@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>分析 - 映画鑑賞管理 Pro</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="datasource.js"></script>
+    <script src="tmdb_api.js"></script>
+    <script src="common.js"></script>
+    <style>
+        /* ===== S05 CSS_Root (グローバル定義) ===== */
+        :root {
+            --prime-blue: #00A8E1; 
+            --disabled-grey: #555555; /* バッジ視認性のためのグレー調整 */
+        }
+
+        /* ===== S10 CSS_Base (基本レイアウト) ===== */
+        .analysis-group {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 12px 0; 
+            margin-bottom: 45px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .analysis-group h2, .chart-wrapper, #directorRanking, #actorRanking, #unwatchedList {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+
+        h1, .analysis-group h2 { 
+            font-size: 1.4rem;
+            color: #fff;
+            margin-top: 0;
+            margin-bottom: 5px; 
+            font-weight: bold;
+        }
+        h1 { color: var(--accent); margin-bottom: 20px; }
+
+        .chart-wrapper {
+            margin-bottom: 10px;
+            height: 230px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chart-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+        }
+
+        /* ===== S20 CSS_Parts (UI部品) ===== */
+        .ai-iframe-wrapper {
+            width: 100%;
+            height: 355px; 
+            border: none;
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            position: relative;
+        }
+
+        .ai-loading-text {
+            position: absolute;
+            top: 20px;
+            left: 16px;
+            color: #46d369;
+            font-size: 0.9rem;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+
+        .series-action-area {
+            text-align: center;
+            padding: 20px 10px;
+            background: rgba(229, 9, 20, 0.1);
+            border: 1px dashed var(--accent);
+            border-radius: 12px;
+            margin: 15px 12px 0 12px;
+        }
+
+        .rank-item { 
+            padding: 14px 12px; 
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .rank-item:last-child { border-bottom: none; }
+
+        .list-row-upper {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+        }
+        .list-title {
+            font-weight: bold;
+            color: #fff;
+            font-size: 1rem;
+            flex: 1;
+            padding-right: 15px;
+            line-height: 1.3;
+        }
+        .list-rate {
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 0.95rem;
+            white-space: nowrap;
+        }
+
+        .list-row-lower {
+            color: #aaa;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            display: flex; /* バッジを右寄せにするための変更 */
+            justify-content: space-between;
+            align-items: flex-end;
+            width: 100%;
+        }
+
+        .limit-select {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            text-align: center;
+            text-align-last: center; 
+            padding: 2px 8px;
+            margin-left: 25px; 
+            vertical-align: middle;
+            height: 24px;
+        }
+
+        /* ===== S30 CSS_Prime (精密配置・垂直スタック) ===== */
+        .prime-switch-wrapper {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            margin-left: 10px;
+            margin-right: 12px; 
+            vertical-align: middle;
+            min-height: 32px;
+        }
+        .prime-switch-text {
+            font-size: 0.6rem;
+            color: var(--prime-blue);
+            font-weight: bold;
+            white-space: nowrap;
+            line-height: 1;
+        }
+        .prime-switch {
+            position: relative;
+            display: inline-block;
+            width: 30px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+        .prime-switch input { opacity: 0; width: 0; height: 0; }
+        .prime-slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333; transition: .4s;
+            border-radius: 16px; border: 1px solid rgba(0,168,225,0.4);
+        }
+        .prime-slider:before {
+            position: absolute; content: "";
+            height: 10px; width: 10px;
+            left: 2px; bottom: 2px;
+            background: white; transition: .4s; border-radius: 50%;
+        }
+        input:checked + .prime-slider { background-color: var(--prime-blue); }
+        input:checked + .prime-slider:before { transform: translateX(14px); }
+
+        .btn-prime-badge {
+            display: inline-block;
+            background: var(--disabled-grey);
+            color: #fff;
+            font-size: 0.6rem; /* 0.65remから微調整 */
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: background 0.3s;
+            border: none;
+            flex-shrink: 0; /* サイズ固定 */
+            margin-left: 10px; /* テキストとの間隔 */
+        }
+        .btn-prime-badge.active-prime {
+            background: var(--prime-blue) !important;
+            color: #ffffff !important;
+        }
+
+        /* Prime判定中メッセージの装飾（series.htmlのフォント仕様を完全移植） */
+        .prime-loading-msg-sync {
+            color: var(--prime-blue); 
+            font-size: 0.85rem; 
+            font-weight: bold;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            letter-spacing: 0.03em;
+            text-align: center;
+            padding: 20px;
+            display: block;
+            animation: pulse 1.5s infinite;
+        }
+
+        /* ===== S35 CSS_Nav (ナビゲーション) ===== */
+        .nav-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; align-items: flex-end;
+            background: #000;
+            padding: 0 5px env(safe-area-inset-bottom);
+            z-index: 1000;
+            height: 65px;
+        }
+        .nav-item {
+            flex: 1; position: relative;
+            text-align: center; text-decoration: none;
+            height: 50px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: #151515;
+            margin: 0 2px;
+            border-radius: 10px 10px 0 0;
+            color: #666; font-size: 0.95rem; font-weight: bold;
+            transition: all 0.3s ease;
+            border-top: 1px solid #222;
+        }
+        .nav-item.active {
+            height: 58px;
+            background: #222;
+            color: #fff;
+            border-top: 2px solid currentColor;
+            z-index: 2;
+        }
+        .active-analysis { color: #00ff7f !important; border-top-color: #00ff7f !important; box-shadow: 0 -5px 15px rgba(0, 255, 127, 0.1); }
+        .active-input { color: #eeaa44 !important; border-top-color: #eeaa44 !important; }
+        .active-history { color: #00adef !important; border-top-color: #00adef !important; }
+    </style>
+</head>
+<body>
+
+<div class="container" style="padding-bottom: 100px;">
+    <div id="page-stats" class="page active">
+        <h1>マイシネマAI分析</h1>
+
+        <div class="analysis-group">
+            <h2>ジャンル分布</h2>
+            <div class="chart-wrapper">
+                <iframe src="parts_genre_chart.html" class="chart-frame"></iframe>
+            </div>
+            <div id="genreAiArea">
+                <div class="ai-loading-text">AIコンシェルジュが分析中...</div>
+                <iframe id="iframe-genre" class="ai-iframe-wrapper"></iframe>
+            </div>
+        </div>
+
+        <div class="analysis-group">
+            <h2>監督ランキング 
+                <select id="limit-director" class="limit-select" onchange="updateStats()">
+                    <option value="3" selected>3件</option>
+                    <option value="10">10件</option>
+                    <option value="20">20件</option>
+                    <option value="30">30件</option>
+                </select>
+            </h2>
+            <div id="directorRanking"></div>
+            <div id="directorAiArea">
+                <div class="ai-loading-text">AIコンシェルジュが分析中...</div>
+                <iframe id="iframe-director" class="ai-iframe-wrapper"></iframe>
+            </div>
+        </div>
+
+        <div class="analysis-group">
+            <h2>俳優ランキング
+                <select id="limit-actor" class="limit-select" onchange="updateStats()">
+                    <option value="3" selected>3件</option>
+                    <option value="10">10件</option>
+                    <option value="20">20件</option>
+                    <option value="30">30件</option>
+                </select>
+            </h2>
+            <div id="actorRanking"></div>
+            <div id="actorAiArea">
+                <div class="ai-loading-text">AIコンシェルジュが分析中...</div>
+                <iframe id="iframe-actor" class="ai-iframe-wrapper"></iframe>
+            </div>
+        </div>
+
+        <div class="analysis-group">
+            <h2 style="display: flex; align-items: center; justify-content: space-between; min-height: 40px;">
+                <span style="display: flex; align-items: center;">
+                    見たい映画リスト
+                    <select id="limit-unwatched" class="limit-select" onchange="updateStats()">
+                        <option value="5" selected>5件</option>
+                        <option value="10">10件</option>
+                        <option value="9999">全部</option>
+                    </select>
+                </span>
+                <div class="prime-switch-wrapper">
+                    <span class="prime-switch-text">Prime判定</span>
+                    <label class="prime-switch">
+                        <input type="checkbox" id="unwatched-prime-toggle" onchange="toggleUnwatchedPrime()">
+                        <span class="prime-slider"></span>
+                    </label>
+                </div>
+            </h2>
+            <div id="unwatchedList"></div>
+            <div class="series-action-area">
+                <p style="font-size: 0.9rem; color: #fff; margin-bottom: 12px; font-weight:bold;">
+                    シリーズ作品の進捗を調査
+                </p>
+                <p style="font-size: 0.75rem; color: #bbb; margin-bottom: 15px;">
+                    過去の履歴から関連シリーズを深掘りし、<br>未視聴の続編などを一括検索します。
+                </p>
+                <button class="btn-ai-run" onclick="window.location.href='series.html'" style="margin:0; padding: 10px 25px; width: 100%;">
+                    シリーズ調査ページへ ➔
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<nav class="nav-bar">
+    <a href="index.html" class="nav-item active active-analysis">
+        <span class="nav-label">傾向分析</span>
+    </a>
+    <a href="series.html" class="nav-item">
+        <span class="nav-label">シリーズ</span>
+    </a>
+    <a href="input.html" class="nav-item">
+        <span class="nav-label">記録</span>
+    </a>
+    <a href="history.html" class="nav-item">
+        <span class="nav-label">履歴</span>
+    </a>
+</nav>
+
+<script>
+    /* ===== S50 JS_Core (データ読み込み・基礎設定) ===== */
+    window.topActorsData = [];
+    window.topDirectorsData = [];
+    window.genreStats = {};
+    
+    let unwatchedPrimeCache = {};
+
+    const I = {
+        TMDB_ID: 0, SERIES_ID: 1, TITLE: 2, DIR: 3, GENRE: 4, YEAR: 5, RATE: 6, MEMO: 7,
+        IMG: 8, CTRY: 9, COMP: 10, REC: 11, STAT: 12, ACT: 13, SUB: 14, WATCH: 15
+    };
+
+    window.onload = function() {
+        window.logs = typeof loadMovies === 'function' ? loadMovies() : [];
+        if (window.logs.length > 0) {
+            updateStats();
+            generateAiRecommendations();
+        }
+    };
+
+    /* ===== S60 JS_UI_Update (ランキング・リスト描画) ===== */
+    function updateStats() {
+        const limUnwatchedVal = document.getElementById('limit-unwatched').value;
+        const limUnwatched = parseInt(limUnwatchedVal);
+        const limDirector = parseInt(document.getElementById('limit-director').value);
+        const limActor = parseInt(document.getElementById('limit-actor').value);
+        
+        const d = {}, a = {}, unwatched = [];
+        const genres = {}; 
+        
+        window.logs.forEach(l => {
+            if(l[I.STAT] === "□") unwatched.push(l);
+            
+            if(l[I.GENRE]) {
+                const gList = l[I.GENRE].split(/[,|/、]/);
+                gList.forEach(g => {
+                    const cleanG = g.trim();
+                    if(cleanG) genres[cleanG] = (genres[cleanG] || 0) + 1;
+                });
+            }
+
+            if(l[I.DIR] && l[I.DIR] !== "不明") d[l[I.DIR]] = (d[l[I.DIR]] || 0) + 1;
+            if(l[I.ACT] && l[I.ACT] !== "不明") a[l[I.ACT]] = (a[l[I.ACT]] || 0) + 1;
+            if(l[I.SUB]) {
+                const subs = typeof l[I.SUB] === 'string' ? l[I.SUB].split('|') : (Array.isArray(l[I.SUB]) ? l[I.SUB] : []);
+                subs.forEach(act => { 
+                    const name = act.trim();
+                    if(name && name !== "不明") a[name] = (a[name] || 0) + 1; 
+                });
+            }
+        });
+
+        window.genreStats = genres;
+        window.topDirectorsData = Object.entries(d).sort((x,y)=>y[1]-x[1]).map(([n,c])=>({name:n, count:c}));
+        window.topActorsData = Object.entries(a).sort((x,y)=>y[1]-x[1]).map(([n,c])=>({name:n, count:c}));
+
+        unwatched.sort((x, y) => (parseFloat(y[I.RATE]) || 0) - (parseFloat(x[I.RATE]) || 0));
+
+        const isPrimeOnly = document.getElementById('unwatched-prime-toggle').checked;
+
+        let displayList = unwatched;
+        if (isPrimeOnly) {
+            displayList = unwatched.filter(l => unwatchedPrimeCache[l[I.TMDB_ID]] === true);
+        }
+
+        document.getElementById('unwatchedList').innerHTML = displayList.slice(0, limUnwatched).map(l => {
+            const director = l[I.DIR] || "不明";
+            const actor = l[I.ACT] || "不明";
+            const tmdbId = l[I.TMDB_ID];
+            
+            let btnText = "Primeで検索";
+            let activeClass = "";
+            
+            if (unwatchedPrimeCache[tmdbId] === true) {
+                btnText = "Prime配信中";
+                activeClass = "active-prime";
+            }
+
+            return `
+            <div class="rank-item" onclick="jumpToHistory('${l[I.TITLE]}', 'title')">
+                <div class="list-row-upper">
+                    <div class="list-title">${l[I.TITLE]}</div>
+                    <div class="list-rate">★${l[I.RATE] || '0'}</div>
+                </div>
+                <div class="list-row-lower">
+                    <span>監督: ${director} / 主演: ${actor}</span>
+                    <a href="https://www.amazon.co.jp/s?k=${encodeURIComponent(l[I.TITLE])}" 
+                       target="_blank" class="btn-prime-badge ${activeClass}" onclick="event.stopPropagation();">
+                        ${btnText}
+                    </a>
+                </div>
+            </div>`;
+        }).join('');
+
+        document.getElementById('directorRanking').innerHTML = window.topDirectorsData.slice(0, limDirector).map(item=>`<div class="rank-item" onclick="jumpToHistory('${item.name}', 'director')"><div class="list-row-upper"><div class="list-title">${item.name}</div><div class="list-rate">${item.count}本</div></div></div>`).join('');
+        document.getElementById('actorRanking').innerHTML = window.topActorsData.slice(0, limActor).map(item=>`<div class="rank-item" onclick="jumpToHistory('${item.name}', 'actor')"><div class="list-row-upper"><div class="list-title">${item.name}</div><div class="list-rate">${item.count}本</div></div></div>`).join('');
+    }
+
+    /* ===== S70 JS_Prime_Logic (Prime判定ロジック) ===== */
+    async function toggleUnwatchedPrime() {
+        const isChecked = document.getElementById('unwatched-prime-toggle').checked;
+        const unwatchedListArea = document.getElementById('unwatchedList');
+
+        if (!isChecked) {
+            updateStats();
+            return;
+        }
+
+        unwatchedListArea.innerHTML = '<div class="prime-loading-msg-sync">Amazon Prime 配信状況を確認中...</div>';
+
+
+        const unwatched = window.logs.filter(l => l[I.STAT] === "□");
+
+        for (let l of unwatched) {
+            const tid = l[I.TMDB_ID];
+            if (tid && tid !== "---" && unwatchedPrimeCache[tid] === undefined) {
+                unwatchedPrimeCache[tid] = await window.fetchWatchProviders(tid);
+            }
+        }
+
+        updateStats();
+    }
+
+    /* ===== S80 JS_AI_Link (AI連携・その他) ===== */
+    function generateAiRecommendations() {
+        const viewedIds = [];
+        window.logs.forEach(l => {
+            if(l[I.TMDB_ID] && l[I.TMDB_ID] !== "---") viewedIds.push(l[I.TMDB_ID]);
+        });
+
+        const topGenre = Object.entries(window.genreStats).sort((a,b)=>b[1]-a[1])[0]?.[0] || "SF";
+        const topDir = window.topDirectorsData[0]?.name;
+        const topAct = window.topActorsData[0]?.name;
+
+        const excludeStr = viewedIds.length > 0 ? `&excludeIds=${viewedIds.join(',')}` : '';
+
+        document.getElementById('iframe-genre').src = `parts_ai_rec.html?type=genre&keyword=${encodeURIComponent(topGenre)}${excludeStr}`;
+        if (topDir) {
+            document.getElementById('iframe-director').src = `parts_ai_rec.html?type=director&keyword=${encodeURIComponent(topDir)}${excludeStr}`;
+        } else {
+            const dArea = document.getElementById('directorAiArea');
+            if(dArea) dArea.style.display = 'none';
+        }
+        if (topAct) {
+            document.getElementById('iframe-actor').src = `parts_ai_rec.html?type=actor&keyword=${encodeURIComponent(topAct)}${excludeStr}`;
+        } else {
+            const aArea = document.getElementById('actorAiArea');
+            if(aArea) aArea.style.display = 'none';
+        }
+
+        ['genre', 'director', 'actor'].forEach(id => {
+            const frame = document.getElementById(`iframe-${id}`);
+            if(frame) {
+                frame.onload = () => {
+                    const area = document.getElementById(`${id}AiArea`);
+                    if(area) {
+                        const loadingText = area.querySelector('.ai-loading-text');
+                        if (loadingText) loadingText.style.display = 'none';
+                    }
+                };
+            }
+        });
+    }
+
+    function jumpToHistory(query, type, exact = false) { 
+        window.location.href = `history.html?query=${encodeURIComponent(query)}&type=${type}&exact=${exact}`; 
+    }
+</script>
+</body>
+</html>

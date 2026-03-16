@@ -1,0 +1,16 @@
+{
+  "short_name": "マイシネマ",
+  "name": "映画鑑賞管理 Pro",
+  "icons": [
+    {
+      "src": "https://image.tmdb.org/t/p/w192/v99uX67987Gf5vOatvO96U8mdfp.jpg",
+      "type": "image/png",
+      "sizes": "192x192"
+    }
+  ],
+  "start_url": "index.html",
+  "background_color": "#111111",
+  "display": "standalone",
+  "scope": "./",
+  "theme_color": "#e50914"
+}

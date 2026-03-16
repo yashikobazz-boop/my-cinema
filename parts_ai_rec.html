@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+<script src="datasource.js"></script>
+<script src="tmdb_api.js"></script>
+<script src="common.js"></script>
+
+<style>
+/* ===== S10 スタイル定義 ===== */
+
+:root { --accent:#e50914; --ai-green:#46d369; --prime-blue:#00a8e1; --disabled-grey:#555; }
+
+html, body{
+margin:0;
+padding:0;
+background:transparent;
+color:#fff;
+font-family:sans-serif;
+overflow:hidden;
+height:100%;
+}
+
+.ai-analysis-container{
+display:flex;
+flex-direction:column;
+height:100vh;
+height:100dvh;
+position:relative;
+padding-left:0;
+margin:0;
+}
+
+.ai-analysis-container::before{
+content:"";
+position:absolute;
+left:0;
+top:0;
+bottom:0;
+width:4px;
+background:var(--ai-green);
+border-radius:4px;
+z-index:2;
+}
+
+/* ヘッダー */
+.ai-header-flex{
+flex:0 0 auto;
+display:flex;
+flex-direction:column;
+background:rgba(70,211,105,0.1);
+border-radius:0 12px 0 0;
+padding:8px 12px 8px 16px;
+gap:6px;
+}
+
+.ai-header-row1{
+display:flex;
+align-items:center;
+gap:10px;
+}
+
+.ai-header-row2{
+width:100%;
+}
+
+.ai-title-label{
+font-weight:bold;
+color:var(--ai-green);
+font-size:0.85rem;
+white-space:nowrap;
+}
+
+.prime-switch-wrapper{
+display:flex;
+align-items:center;
+gap:4px;
+margin-left:auto;
+}
+
+.prime-switch-text{
+font-size:0.6rem;
+color:var(--prime-blue);
+font-weight:bold;
+white-space:nowrap;
+}
+
+.prime-switch{
+position:relative;
+display:inline-block;
+width:30px;
+height:16px;
+}
+
+.prime-switch input{
+opacity:0;
+width:0;
+height:0;
+}
+
+.prime-slider{
+position:absolute;
+cursor:pointer;
+top:0;
+left:0;
+right:0;
+bottom:0;
+background-color:#333;
+transition:.4s;
+border-radius:16px;
+border:1px solid rgba(0,168,225,0.4);
+}
+
+.prime-slider:before{
+position:absolute;
+content:"";
+height:10px;
+width:10px;
+left:2px;
+bottom:2px;
+background:white;
+transition:.4s;
+border-radius:50%;
+}
+
+input:checked + .prime-slider{
+background-color:var(--prime-blue);
+}
+
+input:checked + .prime-slider:before{
+transform:translateX(14px);
+}
+
+#ranking-select{
+background:#1a1a1a;
+color:#fff;
+border:1px solid var(--ai-green);
+border-radius:4px;
+font-size:0.8rem;
+padding:6px;
+outline:none;
+width:100%;
+}
+
+/* AIコメントとアニメーション */
+.ai-bubble{
+flex:0 0 auto;
+background:rgba(70,211,105,0.1);
+padding:4px 12px 10px 16px;
+border-radius:0 0 12px 0;
+font-size:0.85rem;
+line-height:1.4;
+margin-bottom:8px;
+transition: color 0.3s ease;
+}
+
+/* 点滅アニメーション定義 */
+@keyframes pulse {
+0% { opacity: 0.4; }
+50% { opacity: 1; }
+100% { opacity: 0.4; }
+}
+
+.pulse-green {
+color: var(--ai-green) !important;
+animation: pulse 1.5s infinite;
+}
+
+.pulse-red {
+color: #ff4444 !important;
+animation: pulse 1.5s infinite;
+font-weight: bold;
+}
+
+/* 推薦カード */
+.rec-container{
+flex:1;
+min-height:0;
+position:relative;
+overflow:hidden;
+width:100%;
+}
+
+.rec-slider{
+display:flex;
+height:100%;
+overflow-x:auto;
+scroll-snap-type:x mandatory;
+gap:0;
+-webkit-overflow-scrolling:touch;
+}
+
+.rec-slider::-webkit-scrollbar{
+display:none;
+}
+
+.rec-card{
+flex:0 0 100%;
+scroll-snap-align:start;
+display:flex;
+flex-direction:column;
+background:rgba(255,255,255,0.05);
+padding:10px 12px;
+box-sizing:border-box;
+height:100%;
+overflow:hidden;
+}
+
+.rec-title-row{
+flex:0 0 auto;
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:8px;
+padding-bottom:4px;
+border-bottom:1px solid rgba(255,255,255,0.1);
+}
+
+.rec-title{
+font-size:0.95rem;
+font-weight:bold;
+color:var(--ai-green);
+white-space:nowrap;
+overflow:hidden;
+text-overflow:ellipsis;
+flex:1;
+margin-right:8px;
+}
+
+.rec-no{
+font-size:0.7rem;
+color:#888;
+}
+
+.rec-main-content{
+flex:1;
+display:flex;
+flex-direction:row;
+gap:12px;
+min-height:0;
+overflow:hidden;
+}
+
+.rec-img-wrapper{
+flex:0 0 50%;
+height:100%;
+aspect-ratio:2/3;
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+.rec-img{
+width:120%!important;
+height:120%!important;
+object-fit:contain;
+border-radius:6px;
+cursor:pointer;
+display:block;
+}
+
+.rec-info{
+flex:1;
+display:flex;
+flex-direction:column;
+min-width:0;
+height:100%;
+}
+
+.rec-overview{
+flex:1;
+font-size:0.82rem;
+color:#eee;
+line-height:1.35;
+overflow-y:auto;
+padding-right:4px;
+margin-bottom:8px;
+}
+
+.btn-prime-video{
+flex:0 0 auto;
+background:var(--disabled-grey);
+color:#fff;
+font-size:0.75rem;
+font-weight:bold;
+text-align:center;
+padding:8px 0;
+border-radius:4px;
+text-decoration:none;
+display:block;
+width:100%;
+box-shadow:0 2px 4px rgba(0,0,0,0.3);
+}
+
+.btn-prime-video.active-prime{
+background:var(--prime-blue);
+}
+
+.btn-prime-video.not-found{
+background:var(--disabled-grey);
+}
+/* Amazon Prime判定中専用（series.htmlのデザインを完全移植） */
+.prime-loading-msg-sync {
+    color: var(--prime-blue) !important;
+    font-size: 0.85rem !important;
+    font-weight: bold !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    letter-spacing: 0.03em;
+    text-align: center;
+    padding: 10px 0;
+    display: block;
+    width: 100%;
+    animation: pulse 1.5s infinite;
+}
+
+</style>
+</head>
+
+<body>
+<div class="ai-analysis-container">
+<div class="ai-header-flex">
+<div class="ai-header-row1">
+<div class="ai-title-label">AIコンシェルジュの分析結果</div>
+<div class="prime-switch-wrapper">
+<span class="prime-switch-text">Prime判定</span>
+<label class="prime-switch">
+<input type="checkbox" id="prime-priority-toggle" onchange="togglePrimePriority()">
+<span class="prime-slider"></span>
+</label>
+</div>
+</div>
+<div class="ai-header-row2">
+<select id="ranking-select" onchange="changeSelection(this.value)"></select>
+</div>
+</div>
+<div id="ai-comment" class="ai-bubble">分析中...</div>
+<div id="recommendationContainer" class="rec-container"></div>
+</div>
+
+<script>
+/* ===== S30 初期設定・定数 ===== */
+const MAX_REC = 20;
+const TMDB_ID_INDEX = 0;
+
+const GENRE_ID_MAP = {
+"アクション":28, "アドベンチャー":12, "アニメ":16, "コメディ":35, "犯罪":80, "ドラマ":18,
+"ファンタジー":14, "ホラー":27, "ミステリー":9648, "ロマンス":10749, "SF":878, "サスペンス":53,
+"戦争":10752, "西部劇":37, "ドキュメンタリー":99, "ファミリー":10751, "音楽":10402, "歴史":36
+};
+
+let currentType = "";
+let currentLogs = [];
+let currentExcludeIds = [];
+let cachedMovieList = [];
+let lastCommentText = "";
+
+window.addEventListener('pageshow', function(event) {
+initPage();
+});
+
+/* ===== S40 ページ初期化 ===== */
+function initPage() {
+currentLogs = typeof loadMovies === 'function' ? loadMovies() : [];
+const params = new URLSearchParams(window.location.search);
+currentType = params.get('type') || 'actor';
+const savedKeyword = sessionStorage.getItem(`lastRecKeyword_${currentType}`);
+const urlKeyword = params.get('keyword');
+const keyword = savedKeyword || urlKeyword;
+currentExcludeIds = (params.get('excludeIds') || "").split(',');
+
+setupRankingDropdown(currentType, keyword);
+if (keyword) {
+const select = document.getElementById('ranking-select');
+const rank = select.selectedIndex + 1;
+startAnalysis(currentType, keyword, rank);
+fetchSliderData(currentType, keyword, currentLogs, currentExcludeIds);
+}
+}
+function setupRankingDropdown(type, initialKeyword) {
+const select = document.getElementById('ranking-select');
+let list = [];
+
+if (type === 'genre' && parent.genreStats) {
+list = Object.keys(parent.genreStats).sort((a,b) => parent.genreStats[b] - parent.genreStats[a]);
+}
+else if (type === 'director' && parent.topDirectorsData) {
+list = parent.topDirectorsData.map(d => d.name);
+}
+else if (type === 'actor' && parent.topActorsData) {
+list = parent.topActorsData.map(a => a.name);
+}
+
+if (list.length === 0 && initialKeyword) list = [initialKeyword];
+
+select.innerHTML = list.map((name, i) => {
+const label = (type === 'genre') ? name : `${name} (${i + 1}位)`;
+return `<option value="${name}" ${name === initialKeyword ? 'selected' : ''}>${label}</option>`;
+}).join('');
+}
+
+/* ===== S50 ユーザー操作対応 ===== */
+function changeSelection(val) {
+if (!val) return;
+sessionStorage.setItem(`lastRecKeyword_${currentType}`, val);
+sessionStorage.removeItem(`lastRecIndex_${currentType}_${val}`);
+document.getElementById('prime-priority-toggle').checked = false;
+const select = document.getElementById('ranking-select');
+const rank = select.selectedIndex + 1;
+startAnalysis(currentType, val, rank);
+fetchSliderData(currentType, val, currentLogs, currentExcludeIds);
+}
+
+async function togglePrimePriority() {
+const isChecked = document.getElementById('prime-priority-toggle').checked;
+const keyword = sessionStorage.getItem(`lastRecKeyword_${currentType}`);
+const commentBox = document.getElementById('ai-comment');
+
+if (!isChecked) {
+// トグルOFF時は元のAIコメントに戻し、クラスをリセット
+commentBox.innerText = lastCommentText;
+commentBox.className = "ai-bubble";
+renderSlider(cachedMovieList, keyword);
+return;
+}
+
+// ★追加：オフライン判定
+if (!navigator.onLine) {
+commentBox.innerText = "ネットに接続されていません";
+commentBox.className = "ai-bubble pulse-red"; // 赤文字点滅
+// スイッチを自動でOFFに戻す（フリーズ防止）
+setTimeout(() => {
+document.getElementById('prime-priority-toggle').checked = false;
+commentBox.innerText = lastCommentText;
+commentBox.className = "ai-bubble";
+}, 3000);
+return;
+}
+
+// ★オンラインなら確認中を表示（緑文字点滅）
+commentBox.innerText = "Amazon Prime 配信状況を確認中...";
+commentBox.className = "prime-loading-msg-sync";
+
+
+for (let i = 0; i < cachedMovieList.length; i++) {
+const m = cachedMovieList[i];
+if (m.isPrimeFlatrate === undefined) {
+m.isPrimeFlatrate = await window.fetchWatchProviders(m.id);
+}
+
+const btn = document.getElementById(`btn-prime-${m.id}`);
+if (btn) {
+if (m.isPrimeFlatrate === true) {
+btn.innerText = "Prime配信中";
+btn.classList.add('active-prime');
+btn.classList.remove('not-found');
+}
+else {
+btn.innerText = "Primeで検索";
+btn.classList.add('not-found');
+btn.classList.remove('active-prime');
+}
+}
+}
+
+const sorted = [...cachedMovieList].sort((a, b) => 
+(b.isPrimeFlatrate === true ? 1 : 0) - (a.isPrimeFlatrate === true ? 1 : 0)
+);
+
+renderSlider(sorted, keyword);
+
+// 判定終了後にアニメーションを解除し、元のコメントに戻す
+commentBox.innerText = lastCommentText;
+commentBox.className = "ai-bubble";
+}
+
+/* ===== S60 AI分析コメント ===== */
+function startAnalysis(type, keyword, rank, isOffline = false) {
+const commentBox = document.getElementById('ai-comment');
+let patterns = [];
+const isHisataka = Math.random() > 0.4;
+const namePrefix = isHisataka ? "久康さん、" : "";
+
+if (rank === 1) {
+patterns = (type === 'genre') ? 
+[`${namePrefix}${keyword}作品がお好きですね`, `やはり${keyword}は外せませんね`] :
+[`${namePrefix}${keyword}作品です`, `${keyword}作品からです`];
+}
+else if (rank <= 5) {
+patterns = [`${namePrefix}ご指定の${keyword}です`, `${keyword}のお勧めを抜粋しました`];
+}
+else {
+patterns = [`本日は${keyword}の気分でしょうか。`, `${keyword}のリストはこちらです。`];
+}
+
+let selectedMsg = patterns[Math.floor(Math.random() * patterns.length)];
+if (isOffline) selectedMsg += " (OFFLINE)";
+
+commentBox.innerText = selectedMsg;
+commentBox.className = "ai-bubble"; // クラスをリセット
+lastCommentText = selectedMsg;
+}
+
+/* ===== S70 データ取得(TMDB) ===== */
+async function fetchSliderData(type, keyword, logs, excludeIds) {
+let url = "";
+const allExcludeIds = [...new Set([...logs.map(l => String(l[TMDB_ID_INDEX])), ...excludeIds])];
+const cacheKey = `cachedRec_${type}_${keyword}`;
+
+if (type === 'genre') {
+const gid = GENRE_ID_MAP[keyword];
+if (!gid) return;
+try {
+let movies = [];
+for (let page = 1; page <= 3; page++) {
+const res = await fetch(`https://api.themoviedb.org/3/discover/movie?api_key=${window.TMDB_API_KEY}&with_genres=${gid}&language=ja-JP&sort_by=popularity.desc&page=${page}`);
+const data = await res.json();
+if (!data.results) break;
+movies = movies.concat(data.results);
+}
+const filtered = movies.filter(m => m.poster_path && m.overview && !allExcludeIds.includes(String(m.id)))
+.sort((a,b)=>(b.popularity||0)-(a.popularity||0)).slice(0,MAX_REC);
+cachedMovieList = filtered;
+renderSlider(filtered, keyword);
+} catch(e){ console.error("Genre fetch error",e); }
+return;
+}
+else {
+const searchRes = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${window.TMDB_API_KEY}&query=${encodeURIComponent(keyword)}&language=ja-JP`);
+const searchData = await searchRes.json();
+if (searchData.results?.length) {
+const pid = searchData.results[0].id;
+url = `https://api.themoviedb.org/3/person/${pid}/movie_credits?api_key=${window.TMDB_API_KEY}&language=ja-JP`;
+}
+}
+
+if (!url) return;
+try {
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 3000);
+const res = await fetch(url, { signal: controller.signal });
+clearTimeout(timeoutId);
+const data = await res.json();
+let movies = (type === 'genre') ? (data.results || []) : (type === 'director' ? (data.crew || []).filter(m => m.job === 'Director') : (data.cast || []));
+const filtered = movies.filter(m => m.poster_path && m.overview && !allExcludeIds.includes(String(m.id)))
+.sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, MAX_REC);
+cachedMovieList = filtered;
+renderSlider(filtered, keyword);
+} catch (e) {
+const cachedData = localStorage.getItem(cacheKey);
+if (cachedData) { cachedMovieList = JSON.parse(cachedData); renderSlider(cachedMovieList, keyword); }
+}
+}
+
+/* ===== S80 UI描画・入力連携 ===== */
+function renderSlider(movies, keyword) {
+const container = document.getElementById('recommendationContainer');
+if (movies.length === 0) {
+container.innerHTML = '<div style="color:#888; padding:20px; text-align:center; font-size:0.8rem;">未視聴の作品が見つかりませんでした。</div>';
+return;
+}
+
+container.innerHTML = `<div id="recSlider" class="rec-slider">` + movies.map((m, i) => {
+const movieTitle = m.title || m.original_title;
+let btnText = "Prime Videoで検索";
+let btnClass = "";
+if (m.isPrimeFlatrate === true) { btnText = "Prime配信中"; btnClass = "active-prime"; }
+else if (m.isPrimeFlatrate === false) { btnText = "Primeで検索"; btnClass = "not-found"; }
+
+return `
+<div class="rec-card">
+<div class="rec-title-row">
+<span class="rec-title">${movieTitle}</span>
+<span class="rec-no">No. ${i + 1} / ${movies.length}</span>
+</div>
+<div class="rec-main-content">
+<div class="rec-img-wrapper">
+<img src="https://image.tmdb.org/t/p/w342${m.poster_path}" class="rec-img" onclick="sendToInput('${m.id}', ${i}, '${keyword}')">
+</div>
+<div class="rec-info">
+<div class="rec-overview">${m.overview}</div>
+<a href="https://www.amazon.co.jp/s?k=${encodeURIComponent(movieTitle)}" target="_blank" id="btn-prime-${m.id}" class="btn-prime-video ${btnClass}">${btnText}</a>
+</div>
+</div>
+</div>`;
+}).join('') + `</div>`;
+
+const lastIndex = sessionStorage.getItem(`lastRecKeyword_${currentType}_${keyword}`);
+if (lastIndex !== null) {
+setTimeout(() => {
+const slider = document.getElementById('recSlider');
+if (slider) {
+const cards = slider.querySelectorAll('.rec-card');
+if (cards.length > 0) slider.scrollTo({ left: cards[0].offsetWidth * parseInt(lastIndex), behavior: 'auto' });
+}
+}, 100);
+}
+}
+
+async function sendToInput(tmdbId, index, keyword) {
+sessionStorage.setItem(`lastRecKeyword_${currentType}`, keyword);
+sessionStorage.setItem(`lastRecIndex_${currentType}_${keyword}`, index);
+try {
+const res = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${window.TMDB_API_KEY}&language=ja-JP&append_to_response=credits`);
+const m = await res.json();
+const genreMap = { "Action": "アクション", "Science Fiction": "SF", "Adventure": "ファンタジー", "Comedy": "コメディ", "Drama": "ドラマ", "Animation": "アニメ", "Thriller": "サスペンス", "Crime": "サスペンス", "Horror": "ホラー", "Fantasy": "ファンタジー" };
+const data = {
+tmdbId: m.id || 0,
+seriesId: m.belongs_to_collection ? m.belongs_to_collection.id : "",
+title: m.title || "",
+director: m.credits?.crew?.find(c => c.job === "Director")?.name || "",
+genre: genreMap[m.genres?.[0]?.name] || m.genres?.[0]?.name || "",
+releaseFullDate: m.release_date || "",
+tmdbVote: m.vote_average || 0,
+comment: m.overview || "",
+imageUrl: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : "",
+country: m.production_countries?.[0]?.name || "",
+company: m.production_companies?.[0]?.name || "",
+recommended: "",
+status: "□",
+leadActor: m.credits?.cast?.[0]?.name || "",
+subActors: m.credits?.cast?.slice(1,4).map(a=>a.name).join(' | ') || ""
+};
+sessionStorage.setItem('recMovie', JSON.stringify(data));
+parent.location.href = "input.html?from=rec";
+} catch(e){ alert("データ取得エラー"); }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>記録 - 映画鑑賞管理 Pro</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="style.css">
+    <script src="datasource.js"></script>
+    <script src="tmdb_api.js"></script>
+    <script src="common.js"></script>
+    <style>
+        /* レイアウト・色彩・デザイン規律の完全維持 */
+        #inputHeader { 
+            color: #ffff00; 
+            font-weight: bold; 
+        }
+        
+        .tmdb-data-section {
+            background: rgba(0, 173, 239, 0.05);
+            border: 1px solid rgba(0, 173, 239, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 15px 0;
+        }
+
+        .tmdb-section-label {
+            display: block;
+            font-size: 0.75rem;
+            color: #00adef;
+            margin-bottom: 8px;
+            font-weight: bold;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 173, 239, 0.2);
+            padding-bottom: 4px;
+        }
+
+        .admin-fields-group { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 10px; 
+        }
+        
+        /* --- 入力項目のサイバー・グロウ演出 --- */
+        input, select, textarea {
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: #fff !important;
+            border-radius: 6px;
+            /* 通常時：薄い黄色のネオン境界線 */
+            border: 1px solid rgba(255, 255, 0, 0.8) !important;
+            box-shadow: inset 0 0 4px rgba(255, 255, 0, 1.5);
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        /* フォーカス時：鮮やかなイエロー発光 */
+        input:focus, select:focus, textarea:focus {
+            border: 1px solid #ffff00 !important;
+            box-shadow: 0 0 12px rgba(255, 255, 0, 0.4), inset 0 0 6px rgba(255, 255, 0, 0.1);
+            background: rgba(255, 255, 0, 0.08) !important;
+        }
+
+        /* SYSTEMセクション内も規律を維持しつつフォーカス時は黄色に */
+        .tmdb-data-section input {
+            border: 1px solid rgba(0, 173, 239, 0.2) !important;
+            color: #ccc !important;
+        }
+        .tmdb-data-section input:focus {
+            border: 1px solid #ffff00 !important;
+            box-shadow: 0 0 12px rgba(255, 255, 0, 0.4);
+        }
+
+        .replace-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed rgba(255,255,255,0.2);
+        }
+
+        /* --- メタリック・ボタン仕様 --- */
+        .btn-save {
+            background: linear-gradient(to bottom, #ffff00 0%, #aa8800 100%) !important;
+            color: #000 !important;
+            border: none;
+            border-top: 1px solid #ffff88;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 4px rgba(0,0,0,0.3);
+            font-weight: bold;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+            border-radius: 6px;
+            transition: transform 0.1s;
+        }
+
+        .btn-search, .btn-data, .btn-csv, .btn-reset {
+            background: linear-gradient(to bottom, #444 0%, #1a1a1a 100%) !important;
+            color: #fff !important;
+            border: none;
+            border-top: 1px solid #666;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0,0,0,0.3);
+            border-radius: 6px;
+            transition: transform 0.1s;
+        }
+
+        .btn-save:active, .btn-search:active, .btn-data:active, .btn-csv:active, .btn-reset:active {
+            transform: scale(0.97);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* エクセル風オシャレタブ */
+        .nav-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; align-items: flex-end;
+            background: #000;
+            padding: 0 5px env(safe-area-inset-bottom);
+            z-index: 1000;
+            height: 65px;
+        }
+        .nav-item {
+            flex: 1; position: relative;
+            text-align: center; text-decoration: none;
+            height: 50px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: #151515;
+            margin: 0 2px;
+            border-radius: 10px 10px 0 0;
+            color: #666; font-size: 0.95rem; font-weight: bold;
+            transition: all 0.3s ease;
+            border-top: 1px solid #222;
+        }
+        .nav-item.active {
+            height: 58px;
+            background: #222;
+            color: #fff;
+            border-top: 2px solid currentColor;
+            z-index: 2;
+        }
+        .active-input { 
+            color: #ffff00 !important; 
+            border-top-color: #ffff00 !important; 
+            box-shadow: 0 -5px 15px rgba(255, 255, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+
+<div id="tmdbOverlay" class="search-results-overlay">
+    <div class="search-results-container">
+        <h2 style="color:var(--primary); border:none;">候補を選択してください</h2>
+        <div id="tmdbResultsList"></div>
+        <button class="btn-reset" onclick="closeTmdbOverlay()" style="margin-top:15px; width:100%;">キャンセル</button>
+    </div>
+</div>
+
+<div class="container" style="padding-bottom: 100px;">
+    <div id="page-input" class="page active">
+        <h1 id="inputHeader">データ管理・記録</h1>
+        
+        <div class="card">
+            <input type="hidden" id="editKey"> 
+            <input type="hidden" id="isCopyMode" value="false">
+            
+            <div class="search-row">
+                <input type="text" id="movieTitle" placeholder="映画タイトル">
+                <button type="button" class="btn-search" id="btn-search-trigger" onclick="searchTmdbMovie()">検索</button>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <input type="text" id="movieDirector" placeholder="監督" style="flex:1;">
+                <select id="movieStatus" style="flex:0.6;">
+                    <option value="〇" selected>視聴済み(〇)</option>
+                    <option value="◎">お気に入り(◎)</option>
+                    <option value="×">駄作(×)</option>
+                    <option value="□">未視聴(□)</option>
+                </select>
+            </div>
+
+            <input type="text" id="leadActor" placeholder="主演俳優" style="margin-bottom:10px;">
+            <input type="text" id="subActor" placeholder="助演俳優" style="margin-bottom:10px;">
+            
+            <select id="movieGenre" style="margin-bottom:10px;">
+                <option value="SF">SF</option><option value="アクション" selected>アクション</option>
+                <option value="ドラマ">ドラマ</option><option value="アニメ">アニメ</option>
+                <option value="サスペンス">サスペンス</option><option value="コメディ">コメディ</option>
+                <option value="ファンタジー">ファンタジー</option><option value="ホラー">ホラー</option>
+            </select>
+
+            <textarea id="movieComment" rows="4" placeholder="感想・メモ（映画紹介）"></textarea>
+
+            <div class="tmdb-data-section">
+                <span class="tmdb-section-label">SYSTEM / TMDB DETAILS</span>
+                <div class="admin-fields-group">
+                    <input type="text" id="tmdbId" placeholder="TMDB ID">
+                    <input type="text" id="seriesId" placeholder="シリーズID">
+                    <input type="text" id="tmdbVote" placeholder="評価" style="flex:0.5;">
+                </div>
+                <div class="admin-fields-group">
+                    <input type="text" id="country" placeholder="制作国">
+                    <input type="text" id="releaseFullDate" placeholder="公開日 (YYYY/MM/DD)">
+                </div>
+                <input type="text" id="company" class="system-input-field" placeholder="制作会社" style="margin-bottom:10px; width:100%; box-sizing:border-box;">
+                <input type="text" id="recommended" class="system-input-field" placeholder="推奨作品 (関連作品)" style="width:100%; box-sizing:border-box;">
+                <input type="hidden" id="imageUrl">
+            </div>
+
+            <div class="action-group">
+                <button id="saveBtn" class="btn-save" onclick="saveLog()">保存</button>
+                <button type="button" class="btn-reset" onclick="resetForm()">リセット</button>
+            </div>
+
+            <div class="replace-section">
+                <div class="replace-container">
+                    <div class="replace-inputs">
+                        <input type="text" id="replaceFrom" placeholder="置換前">
+                        <input type="text" id="replaceTo" placeholder="置換後">
+                    </div>
+                    <button type="button" class="btn-data" onclick="executeReplace()">置換</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>CSVデータ連携</h2>
+            <div class="csv-menu-grid">
+                <button class="btn-csv" onclick="exportCSV()">CSV出力・保存</button>
+                <button class="btn-csv" onclick="document.getElementById('csvFile').click()">CSV読み込み</button>
+            </div>
+            <input type="file" id="csvFile" style="display:none;" accept=".csv" onchange="importCSV(this)">
+        </div>
+    </div>
+</div>
+
+<nav class="nav-bar">
+    <a href="index.html" class="nav-item">傾向分析</a>
+    <a href="series.html" class="nav-item">シリーズ</a>
+    <a href="input.html" class="nav-item active active-input">記録</a>
+    <a href="history.html" class="nav-item">履歴</a>
+</nav>
+
+<script>
+    const safeKatakana = (str) => {
+        if (typeof toFullWidthKatakana === 'function') return toFullWidthKatakana(str);
+        return str;
+    };
+
+    window.onload = function() {
+        const logs = loadMovies(); 
+        const params = new URLSearchParams(window.location.search);
+        const key = params.get('key'); 
+        const isCopy = params.get('copy') === 'true';
+        const fromRec = params.get('from');
+
+        const recData = sessionStorage.getItem('recMovie');
+        if (fromRec === 'rec' && recData) {
+            const m = JSON.parse(recData);
+            document.getElementById('tmdbId').value = m.tmdbId !== undefined ? m.tmdbId : 0;
+            document.getElementById('seriesId').value = m.seriesId || "";
+            document.getElementById('tmdbVote').value = m.tmdbVote || 0;
+            document.getElementById('movieTitle').value = m.title || "";
+            document.getElementById('movieDirector').value = m.director || "";
+            document.getElementById('leadActor').value = m.leadActor || "";
+            document.getElementById('subActor').value = m.subActors || "";
+            document.getElementById('movieGenre').value = m.genre || "アクション";
+            document.getElementById('movieComment').value = m.comment || "";
+            document.getElementById('releaseFullDate').value = m.releaseFullDate || "";
+            document.getElementById('country').value = m.country || "";
+            document.getElementById('company').value = m.company || "";
+            document.getElementById('recommended').value = m.recommended || "";
+            document.getElementById('imageUrl').value = m.imageUrl || "";
+            document.getElementById('movieStatus').value = m.status || "□";
+            sessionStorage.removeItem('recMovie');
+            document.getElementById('inputHeader').innerText = "おすすめを登録";
+        } else if (key) {
+            const m = logs.find(l => String(l[15]) === String(key)); 
+            if(m) {
+                if (isCopy) {
+                    fillFormForCopy(m);
+                    document.getElementById('saveBtn').innerText = "追加保存";
+                    document.getElementById('isCopyMode').value = "true";
+                } else {
+                    fillFormFull(m);
+                    document.getElementById('editKey').value = m[15]; 
+                    document.getElementById('saveBtn').innerText = "更新";
+                }
+            }
+        }
+    };
+
+    function fillFormForCopy(m) {
+        document.getElementById('tmdbId').value = ""; 
+        document.getElementById('movieTitle').value = m[2] || ""; 
+        document.getElementById('movieDirector').value = m[3] || "";
+        document.getElementById('movieGenre').value = m[4] || "アクション";
+        document.getElementById('movieComment').value = m[7] || ""; 
+        document.getElementById('movieStatus').value = m[12] || "〇";
+        document.getElementById('leadActor').value = m[13] || ""; 
+        document.getElementById('subActor').value = m[14] || "";
+        document.getElementById('releaseFullDate').value = m[5] || "";
+        document.getElementById('country').value = m[9] || "";
+    }
+
+    function fillFormFull(m) {
+        document.getElementById('tmdbId').value = m[0] || "";
+        document.getElementById('seriesId').value = m[1] || "";
+        document.getElementById('movieTitle').value = m[2] || ""; 
+        document.getElementById('movieDirector').value = m[3] || "";
+        document.getElementById('movieGenre').value = m[4] || "アクション";
+        document.getElementById('releaseFullDate').value = m[5] || ""; 
+        document.getElementById('tmdbVote').value = m[6] || "";       
+        document.getElementById('movieComment').value = m[7] || ""; 
+        document.getElementById('imageUrl').value = m[8] || "";
+        document.getElementById('country').value = m[9] || "";
+        document.getElementById('company').value = m[10] || "";
+        document.getElementById('recommended').value = m[11] || "";
+        document.getElementById('movieStatus').value = m[12] || "〇";
+        document.getElementById('leadActor').value = m[13] || ""; 
+        document.getElementById('subActor').value = m[14] || "";
+    }
+
+    async function searchTmdbMovie() {
+        const title = document.getElementById('movieTitle').value.trim();
+        if (!title) return;
+        try {
+            const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=ja-JP`);
+            const data = await res.json();
+            if (data.results?.length > 0) showTmdbOverlay(data.results);
+            else alert("映画が見つかりませんでした。");
+        } catch (e) { alert("検索エラーが発生しました。"); }
+    }
+
+    function showTmdbOverlay(movies) {
+        const list = document.getElementById('tmdbResultsList');
+        list.innerHTML = movies.map(m => `
+            <div class="search-item" onclick="fetchMovieDetails('${m.id}')">
+                <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92' + m.poster_path : 'https://via.placeholder.com/60x90'}">
+                <div style="flex:1;">
+                    <div style="color:var(--accent); font-weight:bold; font-size:1rem;">${m.title}</div>
+                    <div style="color:#888; font-size:0.8rem;">${m.release_date || '不明'}</div>
+                </div>
+            </div>`).join('');
+        document.getElementById('tmdbOverlay').style.display = 'block';
+    }
+
+    function closeTmdbOverlay() { document.getElementById('tmdbOverlay').style.display = 'none'; }
+
+    async function fetchMovieDetails(id) {
+        try {
+            const m = await (await fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_API_KEY}&language=ja-JP&append_to_response=credits,recommendations`)).json();
+            document.getElementById('tmdbId').value = m.id || 0;
+            document.getElementById('seriesId').value = m.belongs_to_collection ? m.belongs_to_collection.id : "";
+            document.getElementById('tmdbVote').value = m.vote_average || 0;
+            document.getElementById('imageUrl').value = m.poster_path ? 'https://image.tmdb.org/t/p/w500' + m.poster_path : "";
+            document.getElementById('country').value = m.production_countries?.map(c => c.name).join(', ') || "";
+            document.getElementById('company').value = m.production_companies?.map(c => c.name).join(', ') || "";
+            const recTitles = m.recommendations?.results?.slice(0, 3).map(r => r.title).join(', ') || "";
+            document.getElementById('recommended').value = recTitles;
+            document.getElementById('movieTitle').value = m.title || "";
+            document.getElementById('movieDirector').value = m.credits?.crew?.find(c => c.job === "Director")?.name || "";
+            document.getElementById('leadActor').value = m.credits?.cast?.[0]?.name || "";
+            document.getElementById('subActor').value = m.credits?.cast?.[1]?.name || "";
+            document.getElementById('releaseFullDate').value = m.release_date || "";
+            document.getElementById('movieComment').value = m.overview || "";
+            document.getElementById('movieStatus').value = "〇";
+            closeTmdbOverlay();
+        } catch (e) { console.error(e); alert("詳細取得エラー。"); }
+    }
+
+    function saveLog() {
+        const title = document.getElementById('movieTitle').value; 
+        if(!title) return;
+        const editKey = document.getElementById('editKey').value;
+        const isCopy = document.getElementById('isCopyMode').value === "true";
+        const now = new Date();
+        const timestamp = now.getFullYear() + "/" + String(now.getMonth() + 1).padStart(2, '0') + "/" + String(now.getDate()).padStart(2, '0') + " " + String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0') + ":" + String(now.getSeconds()).padStart(2, '0');
+        const finalTmdbId = document.getElementById('tmdbId').value.trim() === "" ? "0" : document.getElementById('tmdbId').value;
+
+        const data = [
+            finalTmdbId, document.getElementById('seriesId').value || "", safeKatakana(title), safeKatakana(document.getElementById('movieDirector').value),
+            document.getElementById('movieGenre').value, document.getElementById('releaseFullDate').value || "", document.getElementById('tmdbVote').value || 0,
+            safeKatakana(document.getElementById('movieComment').value), document.getElementById('imageUrl').value || "", document.getElementById('country').value || "",
+            document.getElementById('company').value || "", document.getElementById('recommended').value || "", document.getElementById('movieStatus').value,
+            safeKatakana(document.getElementById('leadActor').value), safeKatakana(document.getElementById('subActor').value), (editKey && !isCopy) ? editKey : timestamp                                    
+        ];
+
+        const logs = loadMovies();
+        if (editKey && !isCopy) { 
+            const idx = logs.findIndex(l => String(l[15]) === String(editKey)); 
+            if(idx > -1) { logs[idx] = data; saveMovies(logs); }
+        } else { logs.push(data); saveMovies(logs); }
+        alert("保存しました。");
+        location.href = "history.html";
+    }
+
+    function resetForm() { if(confirm("入力をリセットしますか？")) location.href = "input.html"; }
+
+    async function exportCSV() {
+        const freshLogs = loadMovies();
+        if (freshLogs.length === 0) { alert("出力するデータがありません。"); return; }
+        const now = new Date();
+        const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+        const fileName = `movie_logs_ver09_${dateStr}.csv`;
+        let csv = "TMDB_ID,SERIES_ID,タイトル,監督,ジャンル,公開日,TMDb評価,紹介文,画像URL,制作国,制作会社,推奨作品,ステータス,主演,助演,登録日時\n";
+        freshLogs.forEach(l => { 
+            const clean = l.map(field => `"${(field || "").toString().replace(/\r?\n/g, " ").replace(/"/g, '""')}"`);
+            csv += clean.join(",") + "\n";
+        });
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: 'text/csv' })] })) {
+            try { await navigator.share({ files: [new File([blob], fileName, { type: 'text/csv' })], title: '映画鑑賞データ保存', text: 'CSVファイルを保存します。' }); } catch (err) { if (err.name !== "AbortError") legacyDownload(blob, fileName); }
+        } else { legacyDownload(blob, fileName); }
+    }
+
+    function legacyDownload(blob, fileName) {
+        const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = fileName;
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        alert(`ダウンロードを開始しました。\n(ファイル名: ${fileName})`);
+    }
+
+    function importCSV(input) {
+        const file = input.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result; const lines = text.split(/\r?\n/); const newLogs = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                if (row) { newLogs.push(row.map(v => v.replace(/^"|"$/g, '').replace(/""/g, '"'))); }
+            }
+            if (newLogs.length > 0) { saveMovies(newLogs); alert(newLogs.length + " 件のデータを読み込みました。"); location.reload(); }
+        };
+        reader.readAsText(file);
+    }
+
+    function executeReplace() {
+        const f = document.getElementById('replaceFrom').value;
+        const t = document.getElementById('replaceTo').value;
+        if(!f) return;
+        let movies = loadMovies();
+        movies = movies.map(m => m.map(field => (typeof field === 'string') ? field.split(f).join(t) : field));
+        saveMovies(movies);
+        alert("置換が完了しました。");
+        location.reload();
+    }
+</script>
+</body>
+</html>
