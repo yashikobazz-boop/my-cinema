@@ -215,92 +215,101 @@
 
 /* ===== S40 ページ初期化・解析 ===== */
     document.addEventListener('DOMContentLoaded', async function() {
-        // datasource.js からのデータ読み込みを優先
-        const logs = (typeof loadMovies === 'function') ? loadMovies() : (window.CinemaData ? window.CinemaData.logs : []);
-        await analyzeSeries(logs);
+        try {
+            const logs = (typeof loadMovies === 'function') ? loadMovies() : (window.CinemaData ? window.CinemaData.logs : []);
+            await analyzeSeries(logs);
+        } catch(e) {
+            console.error("Initialization Error:", e);
+        }
     });
-async function analyzeSeries(logs) {
-        const seriesMap = {};
-        const favSeriesIds = new Set();
-        allWatchedIds = new Set();
-        
-        logs.forEach(l => {
-            const mid = String(l[I.ID]).trim();
-            const sid = String(l[I.SERIES]).trim();
-            const status = String(l[I.STAT] || "");
+
+    async function analyzeSeries(logs) {
+        try {
+            const seriesMap = {};
+            const favSeriesIds = new Set();
+            allWatchedIds = new Set();
             
-            if (mid && mid !== "" && mid !== "---") allWatchedIds.add(mid);
-            if (sid && sid !== "---" && sid !== "") {
-                if (!seriesMap[sid]) seriesMap[sid] = { watchedIds: new Set() };
-                if (mid) seriesMap[sid].watchedIds.add(mid);
-                if (status.includes("◎")) favSeriesIds.add(sid);
-            }
-        });
+            // 安全なインデックス取得
+            const idxId = (typeof I !== 'undefined') ? I.ID : 0;
+            const idxSid = (typeof I !== 'undefined') ? I.SERIES : 1;
+            const idxStat = (typeof I !== 'undefined') ? I.STAT : 12;
 
-        const seriesIds = Object.keys(seriesMap);
-        const results = await Promise.all(seriesIds.map(async (sid) => {
-            try {
-                const data = await window.fetchSeriesDetails(sid);
-                if (data && data.parts) {
-                    const parts = data.parts.sort((a,b) => {
-                        const dateA = a.release_date || "9999-99-99";
-                        const dateB = b.release_date || "9999-99-99";
-                        return new Date(dateA) - new Date(dateB);
-                    });
-                    const watched = parts.filter(p => allWatchedIds.has(String(p.id)));
-                    return {
-                        id: sid, 
-                        name: data.name, 
-                        poster: data.poster_path ? IMG_PATH + data.poster_path : "no-image.png",
-                        total: parts.length, 
-                        watchedCount: watched.length, 
-                        percent: Math.round((watched.length / parts.length) * 100),
-                        popularity: data.popularity || 0, 
-                        isFavorite: favSeriesIds.has(sid),
-                        firstRelease: parts[0]?.release_date || "9999-99-99", 
-                        parts: parts,
-                        isAiRecommended: false // AI推奨フラグ初期化
-                    };
+            logs.forEach(l => {
+                const mid = String(l[idxId] || "").trim();
+                const sid = String(l[idxSid] || "").trim();
+                const status = String(l[idxStat] || "");
+                
+                if (mid && mid !== "" && mid !== "---") allWatchedIds.add(mid);
+                if (sid && sid !== "---" && sid !== "") {
+                    if (!seriesMap[sid]) seriesMap[sid] = { watchedIds: new Set() };
+                    if (mid) seriesMap[sid].watchedIds.add(mid);
+                    if (status.includes("◎")) favSeriesIds.add(sid);
                 }
-            } catch (e) { return null; }
-        }));
-        
-        globalSeriesData = results.filter(r => r !== null);
-        
-        // 【重要】ローカルデータで即時描画（フリーズ防止）
-        refreshView();
-        
-        // 描画後に裏側でインテリジェンス・ソートを開始
-        runIntelligenceSort();
-    }
+            });
 
+            const seriesIds = Object.keys(seriesMap);
+            // Promise.allで並列処理しつつ、個別のエラーで全体を止めない対策
+            const results = await Promise.all(seriesIds.map(async (sid) => {
+                try {
+                    const data = await window.fetchSeriesDetails(sid);
+                    if (data && data.parts) {
+                        const parts = data.parts.sort((a,b) => {
+                            const dateA = a.release_date || "9999-99-99";
+                            const dateB = b.release_date || "9999-99-99";
+                            return new Date(dateA) - new Date(dateB);
+                        });
+                        const watched = parts.filter(p => allWatchedIds.has(String(p.id)));
+                        const imgBasePath = (typeof IMG_PATH !== 'undefined') ? IMG_PATH : 'https://image.tmdb.org/t/p/w500';
+                        
+                        return {
+                            id: sid, name: data.name, 
+                            poster: data.poster_path ? imgBasePath + data.poster_path : "no-image.png",
+                            total: parts.length, watchedCount: watched.length, 
+                            percent: Math.round((watched.length / parts.length) * 100),
+                            popularity: data.popularity || 0, isFavorite: favSeriesIds.has(sid),
+                            firstRelease: parts[0]?.release_date || "9999-99-99", parts: parts,
+                            isAiRecommended: false
+                        };
+                    }
+                } catch (e) { 
+                    console.warn(`Skip series ${sid} due to error`, e);
+                    return null; 
+                }
+            }));
+            
+            globalSeriesData = results.filter(r => r !== null);
+            
+            // 元のコード通りの描画順序を維持
+            refreshView();
+            runIntelligenceSort();
+            
+        } catch(e) {
+            console.error("Analyze Error:", e);
+            const listEl = document.getElementById('seriesProgressList');
+            if (listEl) listEl.innerHTML = '<div class="loading">解析中にエラーが発生しました。</div>';
+        }
+    }
 
 /* ===== 新機能: AIインテリジェンス・ソート ===== */
     async function runIntelligenceSort() {
         const loadingMsg = document.getElementById('prime-loading-msg');
         if(loadingMsg) loadingMsg.style.display = 'block';
 
-        // 進行中のシリーズを進捗率順に取得
         let inProgress = globalSeriesData.filter(s => s.percent > 0 && s.percent < 100);
         inProgress.sort((a, b) => b.percent - a.percent);
 
         let targetSeries = null;
-
-        // 第1グループ: 進捗上位 1〜10位
         targetSeries = await findPrimeInGroup(inProgress.slice(0, 10));
 
-        // 第2グループ: 進捗上位 11〜20位 (1〜10位にPrimeが無かった場合)
         if (!targetSeries && inProgress.length > 10) {
             targetSeries = await findPrimeInGroup(inProgress.slice(10, 20));
         }
 
         if (targetSeries) {
-            targetSeries.isAiRecommended = true; // 推奨フラグを付与
+            targetSeries.isAiRecommended = true;
         }
 
         if(loadingMsg) loadingMsg.style.display = 'none';
-        
-        // フラグが付与された状態で再ソート＆描画
         refreshView(); 
     }
 
@@ -312,7 +321,7 @@ async function analyzeSeries(logs) {
                     primeStatusCache[p.id] = await window.fetchWatchProviders(p.id);
                 }
                 if (primeStatusCache[p.id] === true) {
-                    return s; // Prime対象が見つかればそのシリーズを即返却
+                    return s;
                 }
             }
         }
@@ -323,14 +332,13 @@ async function analyzeSeries(logs) {
     async function toggleSeriesPrime() {
         const isChecked = document.getElementById('series-prime-toggle').checked;
         if (!isChecked) {
-            refreshView(); // トグルOFF時は即座に再描画してUIを元に戻す
+            refreshView();
             return;
         }
 
         const loadingMsg = document.getElementById('prime-loading-msg');
         if(loadingMsg) loadingMsg.style.display = 'block';
 
-        // 現在表示されているリストを取得してPrime判定
         const limit = parseInt(document.getElementById('displayCount').value);
         let list = getCurrentSortedList().slice(0, limit);
         
@@ -346,7 +354,6 @@ async function analyzeSeries(logs) {
         
         for (const s of list) {
             if (!s.parts || s.percent >= 100) continue; 
-            
             for (const p of s.parts) {
                 if (allWatchedIds.has(String(p.id))) continue;
                 if (primeStatusCache[p.id] !== undefined) continue;
@@ -411,6 +418,7 @@ async function analyzeSeries(logs) {
         document.getElementById('seriesSearch').value = "";
         refreshView();
     }
+
 
 /* ===== S50 表示リフレッシュ ===== */
     function getCurrentSortedList() {
