@@ -215,21 +215,26 @@
 
 /* ===== S40 ページ初期化・解析 ===== */
     document.addEventListener('DOMContentLoaded', async function() {
+        console.log("=== [S40] Page Load Started ===");
         try {
             const logs = (typeof loadMovies === 'function') ? loadMovies() : (window.CinemaData ? window.CinemaData.logs : []);
+            console.log(`=== [S40] History Logs Loaded: ${logs.length} items ===`);
             await analyzeSeries(logs);
         } catch(e) {
-            console.error("Initialization Error:", e);
+            console.error("!!! [S40] Critical Initialization Error:", e);
         }
     });
 
     async function analyzeSeries(logs) {
+        const startTime = performance.now();
+        console.log("--- [Analyze] Start Series Analysis ---");
+        
         try {
             const seriesMap = {};
             const favSeriesIds = new Set();
             allWatchedIds = new Set();
             
-            // 安全なインデックス取得
+            // インデックス定義（安全策）
             const idxId = (typeof I !== 'undefined') ? I.ID : 0;
             const idxSid = (typeof I !== 'undefined') ? I.SERIES : 1;
             const idxStat = (typeof I !== 'undefined') ? I.STAT : 12;
@@ -238,7 +243,6 @@
                 const mid = String(l[idxId] || "").trim();
                 const sid = String(l[idxSid] || "").trim();
                 const status = String(l[idxStat] || "");
-                
                 if (mid && mid !== "" && mid !== "---") allWatchedIds.add(mid);
                 if (sid && sid !== "---" && sid !== "") {
                     if (!seriesMap[sid]) seriesMap[sid] = { watchedIds: new Set() };
@@ -248,9 +252,17 @@
             });
 
             const seriesIds = Object.keys(seriesMap);
-            // Promise.allで並列処理しつつ、個別のエラーで全体を止めない対策
-            const results = await Promise.all(seriesIds.map(async (sid) => {
+            const totalCount = seriesIds.length;
+            console.log(`--- [Analyze] Found ${totalCount} unique series IDs ---`);
+
+            // 通信監視付きのデータ取得
+            const results = [];
+            for (let i = 0; i < seriesIds.length; i++) {
+                const sid = seriesIds[i];
                 try {
+                    // GitHubの制限回避のため、10件ごとにわずかな休憩(50ms)を入れる
+                    if (i > 0 && i % 10 === 0) await new Promise(r => setTimeout(r, 50));
+
                     const data = await window.fetchSeriesDetails(sid);
                     if (data && data.parts) {
                         const parts = data.parts.sort((a,b) => {
@@ -259,39 +271,42 @@
                             return new Date(dateA) - new Date(dateB);
                         });
                         const watched = parts.filter(p => allWatchedIds.has(String(p.id)));
-                        const imgBasePath = (typeof IMG_PATH !== 'undefined') ? IMG_PATH : 'https://image.tmdb.org/t/p/w500';
                         
-                        return {
+                        results.push({
                             id: sid, name: data.name, 
-                            poster: data.poster_path ? imgBasePath + data.poster_path : "no-image.png",
+                            poster: data.poster_path ? (IMG_PATH + data.poster_path) : "no-image.png",
                             total: parts.length, watchedCount: watched.length, 
                             percent: Math.round((watched.length / parts.length) * 100),
                             popularity: data.popularity || 0, isFavorite: favSeriesIds.has(sid),
                             firstRelease: parts[0]?.release_date || "9999-99-99", parts: parts,
                             isAiRecommended: false
-                        };
+                        });
+                        console.log(`[Analyze] Progress: ${i+1}/${totalCount} - ${data.name} (OK)`);
+                    } else {
+                        console.warn(`[Analyze] ${i+1}/${totalCount} - ID:${sid} (No Data)`);
                     }
-                } catch (e) { 
-                    console.warn(`Skip series ${sid} due to error`, e);
-                    return null; 
+                } catch (e) {
+                    console.error(`[Analyze] ${i+1}/${totalCount} - ID:${sid} (FAILED)`, e);
                 }
-            }));
+            }
             
-            globalSeriesData = results.filter(r => r !== null);
+            globalSeriesData = results;
+            const endTime = performance.now();
+            console.log(`--- [Analyze] Finished in ${((endTime - startTime)/1000).toFixed(2)}s. Total: ${globalSeriesData.length} series ---`);
             
-            // 元のコード通りの描画順序を維持
+            // 元の描画フローを完全維持
             refreshView();
             runIntelligenceSort();
             
         } catch(e) {
-            console.error("Analyze Error:", e);
-            const listEl = document.getElementById('seriesProgressList');
-            if (listEl) listEl.innerHTML = '<div class="loading">解析中にエラーが発生しました。</div>';
+            console.error("!!! [Analyze] Major Loop Error:", e);
+            document.getElementById('seriesProgressList').innerHTML = '<div class="loading">解析エラーが発生しました。詳細はログを確認してください。</div>';
         }
     }
 
 /* ===== 新機能: AIインテリジェンス・ソート ===== */
     async function runIntelligenceSort() {
+        console.log("--- [AI] Intelligence Sort Started ---");
         const loadingMsg = document.getElementById('prime-loading-msg');
         if(loadingMsg) loadingMsg.style.display = 'block';
 
@@ -299,18 +314,22 @@
         inProgress.sort((a, b) => b.percent - a.percent);
 
         let targetSeries = null;
+        console.log("[AI] Searching Prime in top 10...");
         targetSeries = await findPrimeInGroup(inProgress.slice(0, 10));
 
         if (!targetSeries && inProgress.length > 10) {
+            console.log("[AI] Searching Prime in next 10...");
             targetSeries = await findPrimeInGroup(inProgress.slice(10, 20));
         }
 
         if (targetSeries) {
+            console.log(`[AI] Recommended: ${targetSeries.name}`);
             targetSeries.isAiRecommended = true;
         }
 
         if(loadingMsg) loadingMsg.style.display = 'none';
         refreshView(); 
+        console.log("--- [AI] Intelligence Sort Finished ---");
     }
 
     async function findPrimeInGroup(group) {
@@ -318,11 +337,12 @@
             let unwatchedParts = s.parts.filter(p => !allWatchedIds.has(String(p.id)));
             for (let p of unwatchedParts) {
                 if (primeStatusCache[p.id] === undefined) {
-                    primeStatusCache[p.id] = await window.fetchWatchProviders(p.id);
+                    try {
+                        primeStatusCache[p.id] = await window.fetchWatchProviders(p.id);
+                        console.log(`[AI-Prime] Checked: ${p.title} -> ${primeStatusCache[p.id]}`);
+                    } catch(e) { console.error(`[AI-Prime] Fetch Error: ${p.title}`, e); }
                 }
-                if (primeStatusCache[p.id] === true) {
-                    return s;
-                }
+                if (primeStatusCache[p.id] === true) return s;
             }
         }
         return null;
@@ -331,6 +351,7 @@
 /* ===== 新機能: 手動Prime判定トグル ===== */
     async function toggleSeriesPrime() {
         const isChecked = document.getElementById('series-prime-toggle').checked;
+        console.log(`--- [Prime Toggle] Switched to: ${isChecked} ---`);
         if (!isChecked) {
             refreshView();
             return;
@@ -351,6 +372,7 @@
     async function performPrimeCheckList(list) {
         if (isCheckingPrime) return;
         isCheckingPrime = true;
+        console.log(`[Prime Check] Batch processing ${list.length} series...`);
         
         for (const s of list) {
             if (!s.parts || s.percent >= 100) continue; 
@@ -358,19 +380,23 @@
                 if (allWatchedIds.has(String(p.id))) continue;
                 if (primeStatusCache[p.id] !== undefined) continue;
                 
-                const isPrime = await window.fetchWatchProviders(p.id);
-                primeStatusCache[p.id] = isPrime;
-                updatePrimeBadgeUI(s.id);
-                await new Promise(resolve => setTimeout(resolve, 600));
+                try {
+                    const isPrime = await window.fetchWatchProviders(p.id);
+                    primeStatusCache[p.id] = isPrime;
+                    console.log(`[Prime Check] ${p.title}: ${isPrime}`);
+                    updatePrimeBadgeUI(s.id);
+                    // API制限(30req/sec程度)を考慮し、意図的にウェイトを置く
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                } catch(e) { console.error(`[Prime Check] Error: ${p.title}`, e); }
             }
         }
         isCheckingPrime = false;
+        console.log("[Prime Check] Batch complete.");
     }
 
     function updatePrimeBadgeUI(seriesId) {
         const series = globalSeriesData.find(s => s.id === seriesId);
         if (!series || series.percent >= 100) return;
-        
         const badge = document.querySelector(`#badge-${seriesId}`);
         if (!badge) return;
         
@@ -387,9 +413,9 @@
     }
 
     function setFilter(type) {
+        console.log(`--- [Filter] Set to: ${type} ---`);
         if (type === 'date' && currentFilter === 'date') dateSortAsc = !dateSortAsc;
         else if (type === 'date') dateSortAsc = true;
-        
         if (type === 'ing' && currentFilter === 'ing') {
             ingSortMode = (ingSortMode === 'percent') ? 'pop' : 'percent';
         } else if (type === 'ing') {
@@ -397,7 +423,6 @@
         }
         
         currentFilter = type;
-        
         if (type === 'comp' || type === 'new') {
             document.getElementById('displayCount').value = "999";
         }
@@ -418,7 +443,6 @@
         document.getElementById('seriesSearch').value = "";
         refreshView();
     }
-
 
 /* ===== S50 表示リフレッシュ ===== */
     function getCurrentSortedList() {
