@@ -13,9 +13,16 @@
     <script src="common.js"></script>
     
     <style>
-    /* ===== S10 スタイル定義（最新UIを完全固定） ===== */
+       /* ===== S10 スタイル定義（最新UIを完全固定） ===== */
         :root { --prime-blue: #00A8E1; }
-        #page-series h1 { color: #00ff7f; margin-bottom: 20px; display: flex; align-items: center; }
+        #page-series h1 { 
+    color: #00ff7f; 
+    margin-bottom: 20px; 
+    display: flex; 
+    align-items: center; 
+}
+
+
         .header-count { color: #00ff7f; font-size: 1.2rem; margin-left: 10px; font-weight: bold; }
 
         .filter-button-grid {
@@ -123,6 +130,7 @@
         .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: flex-end; background: #000; padding: 0 5px env(safe-area-inset-bottom); z-index: 1000; height: 65px; }
         .nav-item { flex: 1; text-align: center; text-decoration: none; height: 50px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #151515; margin: 0 2px; border-radius: 10px 10px 0 0; color: #666; font-size: 0.95rem; font-weight: bold; border-top: 1px solid #222; }
         .nav-item.active { height: 58px; background: #222; color: #00ff7f !important; border-top: 2px solid #00ff7f; }
+
     </style>
 </head>
 <body>
@@ -204,12 +212,13 @@
         else imgElement.src = "no-image.png";
     }
 
+
 /* ===== S40 ページ初期化・解析 ===== */
-    window.onload = async function() {
+    document.addEventListener('DOMContentLoaded', async function() {
         // datasource.js からのデータ読み込みを優先
         const logs = (typeof loadMovies === 'function') ? loadMovies() : (window.CinemaData ? window.CinemaData.logs : []);
         await analyzeSeries(logs);
-    };
+    });
 async function analyzeSeries(logs) {
         const seriesMap = {};
         const favSeriesIds = new Set();
@@ -264,6 +273,7 @@ async function analyzeSeries(logs) {
         // 描画後に裏側でインテリジェンス・ソートを開始
         runIntelligenceSort();
     }
+
 
 /* ===== 新機能: AIインテリジェンス・ソート ===== */
     async function runIntelligenceSort() {

@@ -3,8 +3,8 @@
 body { font-family: -apple-system, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding-bottom: 60px; }
 
 .nav-bar { 
-    position: fixed; bottom: 0; width: 100%; background: #ccc; display: flex; 
-    border-top: 1px solid #999; z-index: 1000; padding-bottom: env(safe-area-inset-bottom); height: 40px; 
+    position: fixed; bottom: 0; left: 0; width: 100%; background: #ccc; display: flex; 
+    border-top: 1px solid #999; z-index: 1000; padding-bottom: env(safe-area-inset-bottom); height: 40px; box-sizing: content-box;
 }
 .nav-item { 
     flex: 1; padding: 0; display: flex; align-items: center; justify-content: center; 
@@ -13,7 +13,7 @@ body { font-family: -apple-system, sans-serif; background-color: var(--bg); colo
 }
 .nav-item.active { color: var(--primary); border-top: 2px solid var(--primary); background: #eee; }
 
-.container { padding: 15px; max-width: 600px; margin: 0 auto; }
+.container { padding: calc(15px + env(safe-area-inset-top)) 15px 15px 15px; max-width: 600px; margin: 0 auto; }
 /* 分割後は常に表示するため .page { display: none; } は無効化されますが、干渉を防ぐため記述は残します */
 .page { display: block; } 
 .card { background: var(--card); border-radius: 16px; padding: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
