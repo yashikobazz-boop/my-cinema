@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>シリーズ分析 - 映画鑑賞管理 Pro</title>
-<link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="style.css">
     <script src="datasource.js"></script>
     <script src="tmdb_api.js"></script>
@@ -16,12 +16,11 @@
        /* ===== S10 スタイル定義（最新UIを完全固定） ===== */
         :root { --prime-blue: #00A8E1; }
         #page-series h1 { 
-    color: #00ff7f; 
-    margin-bottom: 20px; 
-    display: flex; 
-    align-items: center; 
-}
-
+            color: #00ff7f; 
+            margin-bottom: 20px; 
+            display: flex; 
+            align-items: center; 
+        }
 
         .header-count { color: #00ff7f; font-size: 1.2rem; margin-left: 10px; font-weight: bold; }
 
@@ -53,7 +52,6 @@
         .section-title { color: #ffffff; font-size: 1.2rem; border-left: 4px solid #ff0000; padding-left: 10px; margin: 0; font-weight: bold; }
         
         .filter-controls { display: flex; align-items: center; gap: 12px; }
-        
         /* 件数プルダウン：1, 3, 10, 20, 30, 全部の6択 */
         #displayCount {
             background: #2a2a2a; color: #fff; border: 1px solid #444;
@@ -204,12 +202,41 @@
     let primeStatusCache = {};
     let isCheckingPrime = false;
 
-    function tryJPG(imgElement) {
-        if (!imgElement.src) return;
-        imgElement.onerror = null;
-        if (imgElement.src.endsWith(".jpg")) imgElement.src = imgElement.src.replace(".jpg", ".JPG");
-        else if (imgElement.src.endsWith(".JPG")) imgElement.src = "no-image.png";
-        else imgElement.src = "no-image.png";
+    // --- [修正版] 画像リトライ＆ジャンル補完回路 ---
+    function tryJPG(imgElement, genre = "") {
+        if (!imgElement.src || imgElement.dataset.errorCount >= 3) return;
+        
+        // エラー回数をカウント
+        imgElement.dataset.errorCount = (parseInt(imgElement.dataset.errorCount) || 0) + 1;
+        const count = parseInt(imgElement.dataset.errorCount);
+
+        if (count === 1) {
+            // 1回目：.jpg と .JPG の入れ替え試行
+            const currentSrc = imgElement.src;
+            if (currentSrc.endsWith(".jpg")) imgElement.src = currentSrc.replace(".jpg", ".JPG");
+            else if (currentSrc.endsWith(".JPG")) imgElement.src = currentSrc.replace(".JPG", ".jpg");
+            else imgElement.src = currentSrc + "?retry=1";
+        } else if (count === 2) {
+            // 2回目：ジャンル別ローカル画像へ切り替え
+            const g = (genre || "").toLowerCase();
+            let fallback = "generic.jpg"; 
+            if (g.includes("アクション")) fallback = "action.jpg";
+            else if (g.includes("アニメ")) fallback = "anime.JPG";
+            else if (g.includes("コメディ")) fallback = "comedy.jpg";
+            else if (g.includes("ドラマ")) fallback = "drama.jpg";
+            else if (g.includes("ファンタジー")) fallback = "fantasy.jpg";
+            else if (g.includes("ホラー")) fallback = "horror.JPG";
+            else if (g.includes("ミステリー")) fallback = "mystery.jpg";
+            else if (g.includes("sf") || g.includes("サイエンス")) fallback = "sf.jpg";
+            else if (g.includes("サスペンス")) fallback = "suspense.jpg";
+            
+            console.log(`[Fallback] Image missing. Genre: ${genre} -> using ${fallback}`);
+            imgElement.src = fallback;
+        } else {
+            // 3回目：最終手段
+            imgElement.src = "no-image.png";
+            imgElement.onerror = null;
+        }
     }
 
 
@@ -234,7 +261,6 @@
             const favSeriesIds = new Set();
             allWatchedIds = new Set();
             
-            // インデックス定義（安全策）
             const idxId = (typeof I !== 'undefined') ? I.ID : 0;
             const idxSid = (typeof I !== 'undefined') ? I.SERIES : 1;
             const idxStat = (typeof I !== 'undefined') ? I.STAT : 12;
@@ -255,12 +281,10 @@
             const totalCount = seriesIds.length;
             console.log(`--- [Analyze] Found ${totalCount} unique series IDs ---`);
 
-            // 通信監視付きのデータ取得
             const results = [];
             for (let i = 0; i < seriesIds.length; i++) {
                 const sid = seriesIds[i];
                 try {
-                    // GitHubの制限回避のため、10件ごとにわずかな休憩(50ms)を入れる
                     if (i > 0 && i % 10 === 0) await new Promise(r => setTimeout(r, 50));
 
                     const data = await window.fetchSeriesDetails(sid);
@@ -272,6 +296,9 @@
                         });
                         const watched = parts.filter(p => allWatchedIds.has(String(p.id)));
                         
+                        // 画像補完のためにジャンル名を保持
+                        const genreName = (data.genres && data.genres.length > 0) ? data.genres[0].name : "";
+
                         results.push({
                             id: sid, name: data.name, 
                             poster: data.poster_path ? (IMG_PATH + data.poster_path) : "no-image.png",
@@ -279,7 +306,8 @@
                             percent: Math.round((watched.length / parts.length) * 100),
                             popularity: data.popularity || 0, isFavorite: favSeriesIds.has(sid),
                             firstRelease: parts[0]?.release_date || "9999-99-99", parts: parts,
-                            isAiRecommended: false
+                            isAiRecommended: false,
+                            genre: genreName 
                         });
                         console.log(`[Analyze] Progress: ${i+1}/${totalCount} - ${data.name} (OK)`);
                     } else {
@@ -294,16 +322,14 @@
             const endTime = performance.now();
             console.log(`--- [Analyze] Finished in ${((endTime - startTime)/1000).toFixed(2)}s. Total: ${globalSeriesData.length} series ---`);
             
-            // 元の描画フローを完全維持
             refreshView();
             runIntelligenceSort();
             
         } catch(e) {
             console.error("!!! [Analyze] Major Loop Error:", e);
-            document.getElementById('seriesProgressList').innerHTML = '<div class="loading">解析エラーが発生しました。詳細はログを確認してください。</div>';
+            document.getElementById('seriesProgressList').innerHTML = '<div class="loading">解析エラーが発生しました。</div>';
         }
     }
-
 /* ===== 新機能: AIインテリジェンス・ソート ===== */
     async function runIntelligenceSort() {
         console.log("--- [AI] Intelligence Sort Started ---");
@@ -385,7 +411,6 @@
                     primeStatusCache[p.id] = isPrime;
                     console.log(`[Prime Check] ${p.title}: ${isPrime}`);
                     updatePrimeBadgeUI(s.id);
-                    // API制限(30req/sec程度)を考慮し、意図的にウェイトを置く
                     await new Promise(resolve => setTimeout(resolve, 300));
                 } catch(e) { console.error(`[Prime Check] Error: ${p.title}`, e); }
             }
@@ -458,12 +483,10 @@
             list.sort((a, b) => dateSortAsc ? new Date(a.firstRelease) - new Date(b.firstRelease) : new Date(b.firstRelease) - new Date(a.firstRelease));
         } else {
             list.sort((a, b) => {
-                // AI推奨作品は強制的に最上位へ
                 if (a.isAiRecommended && !b.isAiRecommended) return -1;
                 if (!a.isAiRecommended && b.isAiRecommended) return 1;
 
                 if (currentFilter === 'ing') {
-                    // トグルON時はPrime配信中を優先
                     const isPrimeToggleOn = document.getElementById('series-prime-toggle')?.checked;
                     if (isPrimeToggleOn) {
                         const aHasPrime = a.parts.some(p => !allWatchedIds.has(String(p.id)) && primeStatusCache[p.id] === true);
@@ -513,7 +536,8 @@
                             newSeriesList.push({
                                 id: sid, name: sData.name, poster: sData.poster_path ? IMG_PATH + sData.poster_path : "no-image.png",
                                 total: parts.length, watchedCount: 0, percent: 0, popularity: sData.popularity || 0,
-                                isFavorite: false, firstRelease: parts[0]?.release_date || "9999-99-99", parts: parts, isAiRecommended: false
+                                isFavorite: false, firstRelease: parts[0]?.release_date || "9999-99-99", parts: parts, isAiRecommended: false,
+                                genre: (sData.genres && sData.genres.length > 0) ? sData.genres[0].name : ""
                             });
                             processedSid.add(sid);
                         }
@@ -528,7 +552,8 @@
         }
 
         const totalMovies = list.reduce((sum, s) => sum + (typeof s.total === 'number' ? s.total : 0), 0);
-        document.getElementById('headerTotal').innerText = `(${totalMovies}本 / ${list.length}シリーズ)`;
+        const headerTotal = document.getElementById('headerTotal');
+        if (headerTotal) headerTotal.innerText = `(${totalMovies}本 / ${list.length}シリーズ)`;
 
         const limit = parseInt(document.getElementById('displayCount').value);
         const displayList = list.slice(0, limit);
@@ -536,15 +561,14 @@
         renderProgress(displayList);
         renderRecommendations(globalSeriesData);
 
-        // トグルONかつコンプリートタブ以外なら裏側でPrimeチェック
         if (currentFilter !== 'comp' && isPrimeToggleOn) {
             performPrimeCheckList(displayList);
         }
     }
-
 /* ===== S60 進捗UI描画 (変数展開を最適化) ===== */
     function renderProgress(list) {
         const container = document.getElementById('seriesProgressList');
+        if (!container) return;
         if (list.length === 0) {
             container.innerHTML = `<div class="loading">条件に合うシリーズがありません</div>`;
             return;
@@ -555,7 +579,6 @@
 
         let htmlStr = "";
         for (let s of list) {
-            // AI推奨品は強制展開
             const isExpand = isExpandSearch || s.isAiRecommended;
 
             let badgeHtml = '';
@@ -598,7 +621,7 @@
                         <div class="movie-mini-card ${imgStyle}" ${clickAction}>
                             ${unwatchedLabel}
                             ${primeBtn}
-                            <img src="${posterSrc}" onerror="tryJPG(this)">
+                            <img src="${posterSrc}" onerror="tryJPG(this, '${s.genre}')">
                             <div class="movie-title">${p.title}</div>
                         </div>
                     `);
@@ -611,7 +634,7 @@
             htmlStr += `
             <div class="${cardClass}" onclick="toggleAccordion('${s.id}')">
                 <div class="series-header">
-                    ${badgeHtml} <img src="${s.poster}" class="series-thumb" onerror="tryJPG(this)">
+                    ${badgeHtml} <img src="${s.poster}" class="series-thumb" onerror="tryJPG(this, '${s.genre}')">
                     <div class="series-info">
                         <span class="series-name">${s.name}${compBadge}</span>
                         <div class="progress-container"><div class="progress-bar" style="width: ${s.percent}%"></div></div>
@@ -630,24 +653,32 @@
 /* ===== S70 AI推奨ロジック ===== */
     async function renderRecommendations(list) {
         const container = document.getElementById('recommendArea');
+        if (!container) return;
+        
         const candidates = [];
         for (const s of list) {
             if (s.percent < 100) {
                 const unwatched = s.parts.filter(p => !allWatchedIds.has(String(p.id))).sort((a,b) => new Date(a.release_date || "9999-99-99") - new Date(b.release_date || "9999-99-99"));
-                if (unwatched[0]) candidates.push({ ...unwatched[0], seriesName: s.name, seriesId: s.id });
+                if (unwatched[0]) {
+                    candidates.push({ ...unwatched[0], seriesName: s.name, seriesId: s.id, seriesGenre: s.genre });
+                }
             }
         }
+        
         if (candidates.length === 0) {
             container.innerHTML = '<div class="ai-message">全てのシリーズを走破しました！</div>';
             return;
         }
+        
         candidates.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
         const checkLimit = Math.min(candidates.length, 12);
         for (let i = 0; i < checkLimit; i++) {
             const item = candidates[i];
             if (primeStatusCache[item.id] === undefined) {
-                primeStatusCache[item.id] = await window.fetchWatchProviders(item.id);
+                try {
+                    primeStatusCache[item.id] = await window.fetchWatchProviders(item.id);
+                } catch(e) { primeStatusCache[item.id] = false; }
             }
             item.isPrime = primeStatusCache[item.id];
         }
@@ -661,7 +692,7 @@
         container.innerHTML = finalRecs.map(r => `
             <div class="rec-ai-wrapper">
                 <div class="rec-card-main" onclick="jumpToInput(${JSON.stringify(r).replace(/"/g, '&quot;')}, '${r.seriesId}')">
-                    <img src="${r.poster_path ? IMG_PATH + r.poster_path : 'no-image.png'}" class="rec-poster-large" onerror="tryJPG(this)">
+                    <img src="${r.poster_path ? IMG_PATH + r.poster_path : 'no-image.png'}" class="rec-poster-large" onerror="tryJPG(this, '${r.seriesGenre}')">
                     <div class="rec-content">
                         <span class="rec-title-big">${r.title}</span>
                         <div class="rec-meta">シリーズ: ${r.seriesName}<br>公開: ${r.release_date || '不明'}</div>
