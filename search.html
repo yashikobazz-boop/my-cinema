@@ -9,16 +9,20 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 検索ページ専用スタイル */
+        /* 検索ページ専用スタイル：他ページと共通の余白構造へ */
         #page-search {
+            padding: 20px 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 70vh;
-            color: #fff;
+            /* height: 70vh; と justify-content: center; を削除し、浮きを防止 */
+        }
+        
+        .construction-box {
+            margin-top: 100px; /* 画面上部から適度な位置に配置 */
             text-align: center;
         }
+
         .construction-icon {
             font-size: 5rem;
             margin-bottom: 20px;
@@ -29,10 +33,14 @@
             font-weight: bold;
         }
 
-        /* 下段ナビゲーション：他画面と共通の完成版仕様 */
+        /* 下段ナビゲーション：履歴ページ等と完全に同一の仕様 */
         .nav-bar {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            display: flex; align-items: flex-end;
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            right: 0;
+            display: flex; 
+            align-items: flex-end;
             background: #000;
             padding: 0 5px env(safe-area-inset-bottom);
             z-index: 1000;
@@ -66,9 +74,9 @@
             z-index: 2;
         }
 
-        /* 検索タブ：アクティブ時の文字色を「明るい赤」に変更 */
+        /* 検索タブ：アクティブ時の文字色を「明るい赤」 */
         .active-search { 
-            color: #ff4444 !important; /* 明るい赤 */
+            color: #ff4444 !important; 
             border-top: 2px solid #ff4444 !important; 
             box-shadow: 0 -5px 15px rgba(255, 68, 68, 0.1); 
         }
@@ -78,11 +86,13 @@
 </head>
 <body>
 
-<div class="container">
+<div class="container" style="padding-bottom: 100px;">
     <div id="page-search">
-        <div class="construction-icon">🚧</div>
-        <div class="construction-text">現在、検索機能を工事中です</div>
-        <p style="color: #888; margin-top: 10px;">Coming Soon...</p>
+        <div class="construction-box">
+            <div class="construction-icon">🚧</div>
+            <div class="construction-text">現在、検索機能を工事中です</div>
+            <p style="color: #888; margin-top: 10px;">Coming Soon...</p>
+        </div>
     </div>
 </div>
 
@@ -99,7 +109,7 @@
 
 <script>
     window.onload = function() {
-        // アクティブな「検索」タブを中央にスライドさせる
+        // アクティブな「検索」タブを中央にスライド
         const activeItem = document.querySelector('.nav-item.active');
         if (activeItem) {
             activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
