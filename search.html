@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>検索 - 映画鑑賞管理 Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* 検索ページ専用スタイル */
+        #page-search {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 70vh;
+            color: #fff;
+            text-align: center;
+        }
+        .construction-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+        }
+        .construction-text {
+            font-size: 1.2rem;
+            color: #ff4444; /* 明るい赤 */
+            font-weight: bold;
+        }
+
+        /* 下段ナビゲーション：他画面と共通の完成版仕様 */
+        .nav-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; align-items: flex-end;
+            background: #000;
+            padding: 0 5px env(safe-area-inset-bottom);
+            z-index: 1000;
+            height: 65px;
+            border-top: none !important;
+        }
+
+        .nav-scroll-container {
+            flex: 1; display: flex; align-items: flex-end;
+            overflow-x: auto; overflow-y: hidden; height: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+        .nav-scroll-container::-webkit-scrollbar { display: none; }
+
+        .nav-item {
+            flex: 0 0 90px; position: relative;
+            text-align: center; text-decoration: none;
+            height: 50px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: #151515;
+            margin: 0 2px;
+            border-radius: 10px 10px 0 0;
+            color: #666; font-size: 0.95rem; font-weight: bold;
+            transition: all 0.3s ease;
+            border-top: 2px solid transparent;
+        }
+
+        .nav-item.active {
+            height: 58px;
+            background: #222;
+            z-index: 2;
+        }
+
+        /* 検索タブ：アクティブ時の文字色を「明るい赤」に変更 */
+        .active-search { 
+            color: #ff4444 !important; /* 明るい赤 */
+            border-top: 2px solid #ff4444 !important; 
+            box-shadow: 0 -5px 15px rgba(255, 68, 68, 0.1); 
+        }
+
+        .nav-back { flex: 0 0 50px; background: #0a0a0a; color: #444; border-top: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="page-search">
+        <div class="construction-icon">🚧</div>
+        <div class="construction-text">現在、検索機能を工事中です</div>
+        <p style="color: #888; margin-top: 10px;">Coming Soon...</p>
+    </div>
+</div>
+
+<nav class="nav-bar">
+    <a href="javascript:history.back()" class="nav-item nav-back">◀︎</a>
+    <div class="nav-scroll-container">
+        <a href="index.html" class="nav-item">傾向分析</a>
+        <a href="series.html" class="nav-item">シリーズ</a>
+        <a href="input.html" class="nav-item">記録</a>
+        <a href="history.html" class="nav-item">履歴</a>
+        <a href="search.html" class="nav-item active active-search">検索</a>
+    </div>
+</nav>
+
+<script>
+    window.onload = function() {
+        // アクティブな「検索」タブを中央にスライドさせる
+        const activeItem = document.querySelector('.nav-item.active');
+        if (activeItem) {
+            activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+    };
+</script>
+
+</body>
+</html>

@@ -105,6 +105,7 @@
             border-top: 1px solid #882222;
         }
 
+        /* 新ナビゲーションバー（スライド機能＋境界線なし） */
         .nav-bar {
             position: fixed; bottom: 0; left: 0; right: 0;
             display: flex; align-items: flex-end;
@@ -112,9 +113,20 @@
             padding: 0 5px env(safe-area-inset-bottom);
             z-index: 1000;
             height: 65px;
+            border-top: none !important; /* グレーの線を削除 */
+            box-shadow: none !important;
         }
+
+        /* スワイプ領域 */
+        .nav-scroll-container {
+            flex: 1; display: flex; align-items: flex-end;
+            overflow-x: auto; overflow-y: hidden; height: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+        .nav-scroll-container::-webkit-scrollbar { display: none; }
+
         .nav-item {
-            flex: 1; position: relative;
+            flex: 0 0 90px; position: relative;
             text-align: center; text-decoration: none;
             height: 50px;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -123,20 +135,25 @@
             border-radius: 10px 10px 0 0;
             color: #666; font-size: 0.95rem; font-weight: bold;
             transition: all 0.3s ease;
-            border-top: 1px solid #222;
+            border-top: 2px solid transparent;
         }
+
         .nav-item.active {
             height: 58px;
             background: #222;
             color: #fff;
-            border-top: 2px solid currentColor;
             z-index: 2;
         }
+
         .active-history { 
             color: #00adef !important; 
-            border-top-color: #00adef !important; 
+            border-top: 2px solid #00adef !important; /* 青い線を維持 */
             box-shadow: 0 -5px 15px rgba(0, 173, 239, 0.1); 
         }
+
+        /* 戻るボタン専用 */
+        .nav-back { flex: 0 0 50px; background: #0a0a0a; color: #444; border-top: none !important; }
+
     </style>
 </head>
 <body>
@@ -161,18 +178,14 @@
 </div>
 
 <nav class="nav-bar">
-    <a href="index.html" class="nav-item">
-        <span class="nav-label">傾向分析</span>
-    </a>
-    <a href="series.html" class="nav-item">
-        <span class="nav-label">シリーズ</span>
-    </a>
-    <a href="input.html" class="nav-item">
-        <span class="nav-label">記録</span>
-    </a>
-    <a href="history.html" class="nav-item active active-history">
-        <span class="nav-label">履歴</span>
-    </a>
+    <a href="javascript:history.back()" class="nav-item nav-back">◀︎</a>
+    <div class="nav-scroll-container">
+        <a href="index.html" class="nav-item">傾向分析</a>
+        <a href="series.html" class="nav-item">シリーズ</a>
+        <a href="input.html" class="nav-item">記録</a>
+        <a href="history.html" class="nav-item active active-history">履歴</a>
+        <a href="search.html" class="nav-item">検索</a>
+    </div>
 </nav>
 
 <script>
@@ -202,6 +215,12 @@
             }
         }
         renderHistory();
+
+        // アクティブなタブを中央にスライドさせる
+        const activeItem = document.querySelector('.nav-item.active');
+        if (activeItem) {
+            activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
     };
 
     function tryJPG(imgElement) {

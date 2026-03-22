@@ -233,7 +233,7 @@
             animation: pulse 1.5s infinite;
         }
 
-        /* ===== S35 CSS_Nav (ナビゲーション) ===== */
+        /* ===== S35 CSS_Nav (改修版：戻る固定・横スワイプ) ===== */
         .nav-bar {
             position: fixed; bottom: 0; left: 0; right: 0;
             display: flex; align-items: flex-end;
@@ -241,9 +241,35 @@
             padding: 0 5px env(safe-area-inset-bottom);
             z-index: 1000;
             height: 65px;
+            overflow: hidden;
+            border-top: none !important;
+            box-shadow: none !important;
         }
+        /* 固定戻るボタン */
+        .nav-back-fixed {
+            flex: 0 0 50px;
+            height: 50px;
+            display: flex; justify-content: center; align-items: center;
+            background: #151515;
+            margin: 0 2px;
+            border-radius: 10px 10px 0 0;
+            color: #666; font-size: 1rem; font-weight: bold;
+            text-decoration: none;
+        }
+        /* スワイプ領域（上下揺れ防止） */
+        .nav-scroll-container {
+            flex: 1;
+            display: flex; align-items: flex-end;
+            overflow-x: auto;
+            overflow-y: hidden;
+            height: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+        .nav-scroll-container::-webkit-scrollbar { display: none; }
+
         .nav-item {
-            flex: 1; position: relative;
+            flex: 0 0 90px;
+            position: relative;
             text-align: center; text-decoration: none;
             height: 50px;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -252,13 +278,11 @@
             border-radius: 10px 10px 0 0;
             color: #666; font-size: 0.95rem; font-weight: bold;
             transition: all 0.3s ease;
-            border-top: 1px solid #222;
         }
         .nav-item.active {
             height: 58px;
             background: #222;
             color: #fff;
-            border-top: 2px solid currentColor;
             z-index: 2;
         }
         .active-analysis { color: #00ff7f !important; border-top-color: #00ff7f !important; box-shadow: 0 -5px 15px rgba(0, 255, 127, 0.1); }
@@ -350,20 +374,26 @@
 </div>
 
 <nav class="nav-bar">
-    <a href="index.html" class="nav-item active active-analysis">
-        <span class="nav-label">傾向分析</span>
-    </a>
-    <a href="series.html" class="nav-item">
-        <span class="nav-label">シリーズ</span>
-    </a>
-    <a href="input.html" class="nav-item">
-        <span class="nav-label">記録</span>
-    </a>
-    <a href="history.html" class="nav-item">
-        <span class="nav-label">履歴</span>
-    </a>
-</nav>
+    <a href="javascript:history.back();" class="nav-back-fixed">◀︎</a>
 
+    <div class="nav-scroll-container">
+        <a href="index.html" class="nav-item active active-analysis">
+            <span class="nav-label">傾向分析</span>
+        </a>
+        <a href="series.html" class="nav-item">
+            <span class="nav-label">シリーズ</span>
+        </a>
+        <a href="input.html" class="nav-item">
+            <span class="nav-label">記録</span>
+        </a>
+        <a href="history.html" class="nav-item">
+            <span class="nav-label">履歴</span>
+        </a>
+        <a href="search.html" class="nav-item">
+            <span class="nav-label">検索</span>
+        </a>
+    </div>
+</nav>
 <script>
     /* ===== S50 JS_Core (データ読み込み・基礎設定) ===== */
     window.topActorsData = [];
