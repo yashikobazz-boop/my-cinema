@@ -3,49 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>検索 - 映画鑑賞管理 Pro</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>マイシネマ詳細検索 - Red Edition Final</title>
     <link rel="stylesheet" href="style.css">
+    <script src="datasource.js"></script>
+    <script src="tmdb_api.js"></script>
+    <script src="common.js"></script>
     <style>
-        /* 検索ページ専用スタイル：他ページと共通の余白構造へ */
-        #page-search {
-            padding: 20px 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            /* height: 70vh; と justify-content: center; を削除し、浮きを防止 */
+        /* カラーテーマ：シネマレッド */
+        :root {
+            --primary: #e50914; 
+            --accent: #46d369;  
+            --bg-dark: #000;
+            --item-bg: #1a1a1a;
+            --border-color: #333;
+            --text-red: #e50914;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #eee;
+            margin: 0;
+            padding-bottom: 120px; 
+            font-family: sans-serif;
+            -webkit-user-select: text; /* テキストコピーを許可 */
+            user-select: text;
+        }
+
+        /* ヘッダー：実数連動 */
+        .search-header {
+            position: sticky; top: 0; background: #000;
+            padding: 15px; border-bottom: 2px solid var(--primary);
+            z-index: 1000; display: flex; justify-content: space-between; align-items: center;
+        }
+        .header-label { font-size: 0.9rem; color: #aaa; }
+        .match-count { font-size: 1.6rem; color: var(--accent); font-weight: bold; }
+
+        .search-container { padding: 10px; max-width: 600px; margin: 0 auto; }
+        
+        .section-title { 
+            font-size: 1.1rem; color: var(--primary); 
+            margin: 20px 0 10px 5px; font-weight: bold; 
+            border-left: 4px solid var(--primary); padding-left: 10px; 
+        }
+
+        .search-item-row {
+            background: var(--item-bg); border-radius: 8px; padding: 12px; margin-bottom: 12px;
+            border: 1px solid var(--border-color); position: relative;
+        }
+        .search-item-row.active { border-color: var(--primary); background: #222; }
+        .row-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .item-label { font-size: 0.95rem; font-weight: bold; color: #fff; }
+        
+        .input-group { display: flex; gap: 6px; position: relative; align-items: center; }
+        .box-free, .box-select {
+            height: 44px; background: rgba(255,255,255,0.05); color: #fff;
+            border: 1px solid #444; border-radius: 6px; padding: 0 10px; font-size: 0.95rem; flex: 1;
+        }
+        .score-range { display: flex; align-items: center; gap: 5px; flex: 1; }
+        .score-input { width: 60px; text-align: center; }
+
+        .btn-suggest {
+            width: 70px; height: 44px; background: #333; color: #fff;
+            border: 1px solid #555; border-radius: 6px; font-size: 0.75rem; cursor: pointer;
+        }
+
+        .btn-fix {
+            width: 60px; height: 44px; background: linear-gradient(to bottom, #444, #1a1a1a);
+            color: var(--accent); border: 1px solid #555; border-radius: 6px;
+            font-weight: bold; font-size: 0.8rem; cursor: pointer;
+        }
+        .btn-fix.fixed { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+        .suggest-box {
+            position: absolute; top: 46px; left: 0; right: 0;
+            background: #2a2a2a; border: 1px solid var(--primary);
+            border-radius: 6px; z-index: 2000; max-height: 200px; overflow-y: auto; display: none;
+        }
+        .suggest-item { padding: 12px; border-bottom: 1px solid #333; font-size: 0.9rem; color: #fff; }
+
+        .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 5px; }
+        .provider-btn { 
+            background: #222; padding: 12px; border-radius: 6px; border: 1px solid #444; 
+            font-size: 0.85rem; text-align: center; color: #aaa; cursor: pointer;
+        }
+        .provider-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: bold; }
+
+        .execute-area { padding: 20px 15px; }
+        .btn-execute {
+            width: 100%; height: 54px; background: var(--primary); color: #fff;
+            border: none; border-radius: 27px; font-weight: bold; font-size: 1.1rem; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(229, 9, 20, 0.4);
+            transition: all 0.3s ease;
         }
         
-        .construction-box {
-            margin-top: 100px; /* 画面上部から適度な位置に配置 */
-            text-align: center;
+        /* 検索中（点滅アニメーション） */
+        .btn-execute.loading {
+            background: #660000;
+            color: #aaa;
+            cursor: not-allowed;
+            animation: pulse-red 1.5s infinite;
         }
 
-        .construction-icon {
-            font-size: 5rem;
-            margin-bottom: 20px;
-        }
-        .construction-text {
-            font-size: 1.2rem;
-            color: #ff4444; /* 明るい赤 */
-            font-weight: bold;
+        @keyframes pulse-red {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
-        /* 下段ナビゲーション：履歴ページ等と完全に同一の仕様 */
+        /* 検索結果カード：history.html 準拠 */
+        .log-card { 
+            background: rgba(255,255,255,0.03); border-radius: 12px; padding: 15px; 
+            margin: 20px 10px; position: relative; border: 1px solid var(--primary); 
+        }
+        .status-mark { position: absolute; top: 10px; right: 15px; font-size: 1.2rem; }
+        .movie-title { font-size: 1.1rem; color: #fff; display: block; margin-bottom: 5px; padding-right: 30px; }
+        
+        .card-main-row { display: flex; gap: 15px; margin: 10px 0; }
+        .poster-box { flex: 0 0 50%; max-width: 50%; }
+        .poster-img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 6px; background: #222; border: 1px solid #333; }
+        .info-box { flex: 0 0 50%; max-width: 50%; }
+
+        .info-label { 
+            display: block; font-size: 0.7rem; color: var(--text-red); 
+            margin-top: 8px; font-weight: bold; text-transform: uppercase; 
+        }
+        .info-content { font-size: 0.85rem; color: #ccc; line-height: 1.4; }
+
+        .admin-data-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+            margin-top: 15px; padding: 15px 0; border-top: 1px dashed var(--primary);
+        }
+        .admin-item { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 4px; }
+        .admin-label { display: block; font-size: 0.75rem; color: var(--text-red); margin-bottom: 4px; font-weight: bold; }
+        .admin-value { font-size: 0.85rem; color: #eeaa44; word-break: break-all; }
+        .full-width { grid-column: span 2; }
+
+        /* 【重要】ナビゲーションバー：history.html のコードを完全移植 */
         .nav-bar {
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            right: 0;
-            display: flex; 
-            align-items: flex-end;
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; align-items: flex-end;
             background: #000;
             padding: 0 5px env(safe-area-inset-bottom);
             z-index: 1000;
             height: 65px;
             border-top: none !important;
+            box-shadow: none !important;
         }
 
         .nav-scroll-container {
@@ -63,7 +165,7 @@
             background: #151515;
             margin: 0 2px;
             border-radius: 10px 10px 0 0;
-            color: #666; font-size: 0.95rem; font-weight: bold;
+            color: #666; font-size: 0.95rem; font-weight: normal;
             transition: all 0.3s ease;
             border-top: 2px solid transparent;
         }
@@ -71,30 +173,122 @@
         .nav-item.active {
             height: 58px;
             background: #222;
+            color: #fff;
             z-index: 2;
         }
 
-        /* 検索タブ：アクティブ時の文字色を「明るい赤」 */
+        /* 検索ページ専用のアクティブスタイル（履歴ページのactive-historyを継承） */
         .active-search { 
-            color: #ff4444 !important; 
-            border-top: 2px solid #ff4444 !important; 
-            box-shadow: 0 -5px 15px rgba(255, 68, 68, 0.1); 
+            color: var(--primary) !important; 
+            border-top: 2px solid var(--primary) !important;
+            box-shadow: 0 -5px 15px rgba(229, 9, 20, 0.1); 
         }
 
         .nav-back { flex: 0 0 50px; background: #0a0a0a; color: #444; border-top: none !important; }
+
     </style>
 </head>
 <body>
 
-<div class="container" style="padding-bottom: 100px;">
-    <div id="page-search">
-        <div class="construction-box">
-            <div class="construction-icon">🚧</div>
-            <div class="construction-text">現在、検索機能を工事中です</div>
-            <p style="color: #888; margin-top: 10px;">Coming Soon...</p>
+<div class="search-header">
+    <div class="header-label" id="count-label">該当予測件数</div>
+    <div class="match-count"><span id="match-num">---</span> 本</div>
+</div>
+
+<div class="search-container">
+    <div class="section-title">属性検索</div>
+    
+    <div class="search-item-row" id="row-1">
+        <div class="row-top"><div class="item-label">1. 映画タイトル</div></div>
+        <div class="input-group">
+            <input type="text" class="box-free" id="free-1" placeholder="キーワード入力">
+            <button class="btn-suggest" onclick="fetchSuggest(1, 'movie')">候補</button>
+            <button class="btn-fix" id="fix-1" onclick="toggleFix(1)">確定</button>
+            <div id="suggest-1" class="suggest-box"></div>
+        </div>
+    </div>
+
+    <div class="search-item-row" id="row-2">
+        <div class="row-top"><div class="item-label">2. 監督</div></div>
+        <div class="input-group">
+            <input type="text" class="box-free" id="free-2" placeholder="監督名を入力">
+            <button class="btn-suggest" onclick="fetchSuggest(2, 'person')">候補</button>
+            <button class="btn-fix" id="fix-2" onclick="toggleFix(2)">確定</button>
+            <div id="suggest-2" class="suggest-box"></div>
+        </div>
+    </div>
+
+    <div class="search-item-row" id="row-3">
+        <div class="row-top"><div class="item-label">3. 俳優</div></div>
+        <div class="input-group">
+            <input type="text" class="box-free" id="free-3" placeholder="出演者名を入力">
+            <button class="btn-suggest" onclick="fetchSuggest(3, 'person')">候補</button>
+            <button class="btn-fix" id="fix-3" onclick="toggleFix(3)">確定</button>
+            <div id="suggest-3" class="suggest-box"></div>
+        </div>
+    </div>
+
+    <div class="search-item-row" id="row-4">
+        <div class="row-top"><div class="item-label">4. ジャンル</div></div>
+        <div class="input-group">
+            <select class="box-select" id="free-4">
+                <option value="">公式ジャンルから選択</option>
+                <option value="28">アクション</option><option value="12">アドベンチャー</option>
+                <option value="16">アニメーション</option><option value="35">コメディ</option>
+                <option value="80">クライム</option><option value="99">ドキュメンタリー</option>
+                <option value="18">ドラマ</option><option value="10751">ファミリー</option>
+                <option value="14">ファンタジー</option><option value="36">歴史</option>
+                <option value="27">ホラー</option><option value="10402">音楽</option>
+                <option value="9648">ミステリー</option><option value="10749">ロマンス</option>
+                <option value="878">SF</option><option value="53">スリラー</option>
+                <option value="10752">戦争</option><option value="37">西部劇</option>
+            </select>
+            <button class="btn-fix" id="fix-4" onclick="toggleFix(4)">確定</button>
+        </div>
+    </div>
+
+    <div class="search-item-row" id="row-5">
+        <div class="row-top"><div class="item-label">5. 評価スコア</div></div>
+        <div class="input-group">
+            <div class="score-range">
+                <input type="number" step="0.1" class="box-free score-input" id="free-5-min" placeholder="0.0">
+                <span>〜</span>
+                <input type="number" step="0.1" class="box-free score-input" id="free-5-max" placeholder="10.0">
+            </div>
+            <button class="btn-fix" id="fix-5" onclick="toggleFix(5)">確定</button>
+        </div>
+    </div>
+
+    <div class="section-title">状態・配信</div>
+
+    <div class="search-item-row" id="row-6">
+        <div class="row-top"><div class="item-label">6. 鑑賞状態</div></div>
+        <div class="input-group">
+            <select class="box-select" id="free-6">
+                <option value="all">全てを表示</option>
+                <option value="unwatched">未鑑賞のみ</option>
+                <option value="watched">鑑賞済みのみ</option>
+            </select>
+            <button class="btn-fix" id="fix-6" onclick="toggleFix(6)">確定</button>
+        </div>
+    </div>
+
+    <div class="search-item-row" id="row-7">
+        <div class="row-top"><div class="item-label">7. 配信サービス</div><button class="btn-fix" id="fix-7" onclick="toggleFix(7)">確定</button></div>
+        <div class="provider-grid" id="provider-area">
+            <div class="provider-btn" data-id="8" onclick="toggleProvider(this)">Netflix</div>
+            <div class="provider-btn" data-id="9" onclick="toggleProvider(this)">Prime Video</div>
+            <div class="provider-btn" data-id="337" onclick="toggleProvider(this)">Disney+</div>
+            <div class="provider-btn" data-id="2" onclick="toggleProvider(this)">Apple TV</div>
         </div>
     </div>
 </div>
+
+<div class="execute-area">
+    <button class="btn-execute" id="btn-search-exec" onclick="executeSearch()">最終検索実行 & 映画表示</button>
+</div>
+
+<div id="results-display"></div>
 
 <nav class="nav-bar">
     <a href="javascript:history.back()" class="nav-item nav-back">◀︎</a>
@@ -108,14 +302,190 @@
 </nav>
 
 <script>
-    window.onload = function() {
-        // アクティブな「検索」タブを中央にスライド
+    window.onload = () => {
+        updateCount();
         const activeItem = document.querySelector('.nav-item.active');
         if (activeItem) {
             activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
         }
     };
-</script>
 
+    function toggleFix(id) {
+        const btn = document.getElementById('fix-' + id);
+        const row = document.getElementById('row-' + id);
+        btn.classList.toggle('fixed');
+        row.classList.toggle('active');
+        btn.textContent = btn.classList.contains('fixed') ? '解除' : '確定';
+        document.getElementById('count-label').innerText = "該当予測件数";
+        updateCount();
+    }
+
+    function toggleProvider(el) {
+        el.classList.toggle('active');
+        if(!document.getElementById('fix-7').classList.contains('fixed')) toggleFix(7);
+        else updateCount();
+    }
+
+    async function fetchSuggest(id, type) {
+        const val = document.getElementById('free-' + id).value;
+        if (!val) return;
+        const sBox = document.getElementById('suggest-' + id);
+        sBox.innerHTML = "<div class='suggest-item'>検索中...</div>";
+        sBox.style.display = "block";
+        try {
+            const url = `https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(val)}&language=ja-JP`;
+            const res = await fetch(url);
+            const data = await res.json();
+            sBox.innerHTML = "";
+            let results = data.results;
+            if(type === 'person') { results = results.filter(p => p.popularity > 1.0); }
+            if (!results.length) { sBox.style.display = "none"; return; }
+            results.slice(0, 6).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'suggest-item';
+                div.textContent = item.title || item.name;
+                div.onclick = () => {
+                    const input = document.getElementById('free-' + id);
+                    input.value = div.textContent;
+                    input.dataset.tmdbId = item.id;
+                    sBox.style.display = "none";
+                };
+                sBox.appendChild(div);
+            });
+        } catch(e) { sBox.style.display = "none"; }
+    }
+
+    async function buildTMDbUrl() {
+        let params = new URLSearchParams({ api_key: TMDB_API_KEY, language: 'ja-JP', region: 'JP', sort_by: 'popularity.desc' });
+        let baseUrl = `https://api.themoviedb.org/3/discover/movie?`;
+        if(document.getElementById('row-1').classList.contains('active')) {
+            baseUrl = `https://api.themoviedb.org/3/search/movie?`;
+            params.append('query', document.getElementById('free-1').value);
+        }
+        if(document.getElementById('row-2').classList.contains('active')) {
+            const id = document.getElementById('free-2').dataset.tmdbId;
+            if(id) params.append('with_crew', id);
+        }
+        if(document.getElementById('row-3').classList.contains('active')) {
+            const id = document.getElementById('free-3').dataset.tmdbId;
+            if(id) params.append('with_cast', id);
+        }
+        if(document.getElementById('row-4').classList.contains('active')) {
+            const gId = document.getElementById('free-4').value;
+            if(gId) params.append('with_genres', gId);
+        }
+        if(document.getElementById('row-5').classList.contains('active')) {
+            const min = document.getElementById('free-5-min').value;
+            const max = document.getElementById('free-5-max').value;
+            if(min) params.append('vote_average.gte', min);
+            if(max) params.append('vote_average.lte', max);
+        }
+        if(document.getElementById('row-7').classList.contains('active')) {
+            const providers = Array.from(document.querySelectorAll('.provider-btn.active')).map(btn => btn.dataset.id);
+            if(providers.length) {
+                params.append('watch_region', 'JP');
+                params.append('with_watch_providers', providers.join('|'));
+            }
+        }
+        return baseUrl + params.toString();
+    }
+
+    async function updateCount() {
+        try {
+            const url = await buildTMDbUrl();
+            const res = await fetch(url);
+            const data = await res.json();
+            document.getElementById('match-num').innerText = (data.total_results || 0).toLocaleString();
+        } catch(e) { document.getElementById('match-num').innerText = "0"; }
+    }
+
+    async function executeSearch() {
+        const btn = document.getElementById('btn-search-exec');
+        const display = document.getElementById('results-display');
+
+        // ボタンを検索中モードに切り替え
+        btn.classList.add('loading');
+        btn.disabled = true;
+        btn.textContent = "検索中...";
+        
+        display.innerHTML = "<p style='text-align:center; padding:30px; color:var(--primary); font-weight:bold;'>全力で追い込み中...</p>";
+        
+        try {
+            const url = await buildTMDbUrl();
+            const res = await fetch(url);
+            const data = await res.json();
+            const logs = typeof loadMovies === 'function' ? loadMovies() : [];
+            const activeTitle = document.getElementById('row-1').classList.contains('active') ? document.getElementById('free-1').value.toLowerCase() : "";
+            const activeStatus = document.getElementById('row-6').classList.contains('active') ? document.getElementById('free-6').value : "all";
+            const directorId = document.getElementById('row-2').classList.contains('active') ? document.getElementById('free-2').dataset.tmdbId : null;
+
+            display.innerHTML = "";
+            let renderedCount = 0;
+            for (const m of (data.results || [])) {
+                if(activeTitle && !m.title.toLowerCase().includes(activeTitle)) continue;
+                const isWatched = logs.some(l => String(l[0]) === String(m.id));
+                if(activeStatus === 'unwatched' && isWatched) continue;
+                if(activeStatus === 'watched' && !isWatched) continue;
+
+                const detailUrl = `https://api.themoviedb.org/3/movie/${m.id}?api_key=${TMDB_API_KEY}&language=ja-JP&append_to_response=watch/providers,credits`;
+                const dRes = await fetch(detailUrl);
+                const d = await dRes.json();
+
+                if (directorId) {
+                    const realDirectors = d.credits?.crew?.filter(c => c.job === 'Director').map(c => String(c.id)) || [];
+                    if (!realDirectors.includes(String(directorId))) continue;
+                }
+
+                const rawProviders = d["watch/providers"]?.results?.JP?.flatrate || [];
+                const providerSet = new Set();
+                rawProviders.forEach(p => {
+                    let name = p.provider_name;
+                    name = name.replace(/\s*\(?with Ads\)?/g, "").replace(/\s*Standard\s*/g, "").trim();
+                    if (name.includes("Channel")) { name = name.replace(/Channels?/g, "").trim() + " (追加枠)"; }
+                    providerSet.add(name);
+                });
+                const providerNames = Array.from(providerSet).join(', ') || '情報なし';
+                const director = d.credits?.crew?.find(c => c.job === 'Director')?.name || '不明';
+                const cast = d.credits?.cast?.slice(0, 3).map(c => c.name).join(', ') || '不明';
+                const genres = d.genres?.map(g => g.name).join(', ') || '未設定';
+                
+                const card = document.createElement('div');
+                card.className = 'log-card';
+                card.innerHTML = `
+                    <div class="status-mark">${isWatched ? '◎' : ''}</div>
+                    <strong class="movie-title">${m.title}</strong>
+                    <div class="card-main-row">
+                        <div class="poster-box"><img src="https://image.tmdb.org/t/p/w500${m.poster_path}" class="poster-img" onerror="this.src='no-image.png'"></div>
+                        <div class="info-box">
+                            <span class="info-label">監督</span><div class="info-content">${director}</div>
+                            <span class="info-label">出演者</span><div class="info-content">主演: ${cast}</div>
+                            <span class="info-label">公開日</span><div class="info-content">${m.release_date || '不明'}</div>
+                            <span class="info-label">ジャンル</span><div class="info-content">${genres}</div>
+                        </div>
+                    </div>
+                    <span class="info-label">映画紹介</span><div class="info-content" style="white-space: pre-wrap;">${m.overview || 'あらすじ情報はありません。'}</div>
+                    <div class="admin-data-grid">
+                        <div class="admin-item"><span class="admin-label">TMDB ID</span><div class="admin-value">${m.id}</div></div>
+                        <div class="admin-item"><span class="admin-label">評価スコア</span><div class="admin-value" style="color:#ffff00;">${m.vote_average}</div></div>
+                        <div class="admin-item full-width"><span class="admin-label">配信サービス (日本)</span><div class="admin-value">${providerNames}</div></div>
+                        <div class="admin-item full-width"><span class="admin-label">鑑賞ステータス</span><div class="admin-value" style="color:${isWatched ? 'var(--accent)' : '#888'};">${isWatched ? '鑑賞済み' : '未鑑賞'}</div></div>
+                    </div>
+                `;
+                display.appendChild(card);
+                renderedCount++;
+            }
+            document.getElementById('count-label').innerText = "表示中の映画件数";
+            document.getElementById('match-num').innerText = renderedCount.toLocaleString();
+            if(renderedCount === 0) display.innerHTML = "<p style='text-align:center; padding:40px; color:#888;'>条件に合う映画はゼロでした。</p>";
+        } catch(e) { 
+            display.innerHTML = "<p style='text-align:center; padding:20px;'>検索エラーが発生しました。</p>"; 
+        } finally {
+            // ボタンを元の状態に戻す
+            btn.classList.remove('loading');
+            btn.disabled = false;
+            btn.textContent = "最終検索実行 & 映画表示";
+        }
+    }
+</script>
 </body>
 </html>
